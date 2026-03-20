@@ -1,9 +1,9 @@
 # Infra y pipelines
-/platform/ @senior1 @senior2
-/.github/workflows/ @senior1 @senior2
-/tools/ @senior1 @senior2
+/platform/ @Nasst
+/.github/workflows/ @Nasst
+/tools/ @Nasst
 
 # Dominios
-/automations/bitrix24/ @owner-bitrix @senior1
-/automations/reporting/ @owner-reporting @senior2
-/automations/legacy/ @owner-legacy @senior1
+/automations/bitrix24/ @Nasst
+/automations/reporting/ @Nasst
+/automations/legacy/ @Nasst
