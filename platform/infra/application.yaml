@@ -1,0 +1,30 @@
+datasources:
+  postgres:
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+    driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    maximum-pool-size: 10
+
+kestra:
+  server:
+    basic-auth:
+      enabled: true
+      username: ${KESTRA_ADMIN_EMAIL}
+      password: ${KESTRA_ADMIN_PASSWORD}
+  repository:
+    type: postgres
+  queue:
+    type: postgres
+  storage:
+    type: local
+    local:
+      base-path: /app/storage
+  tasks:
+    tmp-dir:
+      path: /tmp/kestra-wd/tmp
+  url: ${KESTRA_PUBLIC_URL}
+  anonymous-usage-report:
+    enabled: false
+  ui-anonymous-usage-report:
+    enabled: false

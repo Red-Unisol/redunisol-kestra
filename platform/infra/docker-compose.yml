@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - kestra_net
+
+  kestra:
+    image: kestra/kestra:${KESTRA_VERSION}
+    restart: unless-stopped
+    user: "root"
+    command: server standalone --config /etc/kestra/application.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./data/storage:/app/storage
+      - ./tmp:/tmp/kestra-wd
+      - ./flows:/opt/kestra/flows
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./application.yaml:/etc/kestra/application.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx2048m
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KESTRA_ADMIN_EMAIL: ${KESTRA_ADMIN_EMAIL}
+      KESTRA_ADMIN_PASSWORD: ${KESTRA_ADMIN_PASSWORD}
+      KESTRA_PUBLIC_URL: ${KESTRA_PUBLIC_URL}
+      ENV_BITRIX24_BASE_URL: ${ENV_BITRIX24_BASE_URL}
+      ENV_BITRIX24_CONTACT_CUIL_FIELD: ${ENV_BITRIX24_CONTACT_CUIL_FIELD}
+      ENV_BITRIX24_LEAD_CUIL_FIELD: ${ENV_BITRIX24_LEAD_CUIL_FIELD}
+      ENV_BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD: ${ENV_BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD}
+      ENV_BITRIX24_LEAD_PAYMENT_BANK_FIELD: ${ENV_BITRIX24_LEAD_PAYMENT_BANK_FIELD}
+      ENV_BITRIX24_LEAD_PROVINCE_FIELD: ${ENV_BITRIX24_LEAD_PROVINCE_FIELD}
+      ENV_BITRIX24_LEAD_SOURCE_FIELD: ${ENV_BITRIX24_LEAD_SOURCE_FIELD}
+      ENV_BITRIX24_LEAD_REJECTION_REASON_FIELD: ${ENV_BITRIX24_LEAD_REJECTION_REASON_FIELD}
+      ENV_BITRIX24_LEAD_STATUS_QUALIFIED: ${ENV_BITRIX24_LEAD_STATUS_QUALIFIED}
+      ENV_BITRIX24_LEAD_STATUS_REJECTED: ${ENV_BITRIX24_LEAD_STATUS_REJECTED}
+      ENV_BITRIX24_TIMEOUT_SECONDS: ${ENV_BITRIX24_TIMEOUT_SECONDS}
+      SECRET_BITRIX24_WEBHOOK_PATH: ${SECRET_BITRIX24_WEBHOOK_PATH}
+      SECRET_BITRIX24_FORM_WEBHOOK_KEY: ${SECRET_BITRIX24_FORM_WEBHOOK_KEY}
+    networks:
+      - kestra_net
+
+networks:
+  kestra_net:
+    name: kestra_net
