@@ -76,16 +76,24 @@ def ensure_success(response: requests.Response, action: str) -> None:
 
 def deploy_flow(session: requests.Session, tenant: str, flow_path: Path, target_namespace: str, environment: str, dry_run: bool) -> None:
     source = normalize_flow_source(flow_path, target_namespace, environment)
+    flow_id = yaml.safe_load(source)["id"]
     print(f"  flow -> {flow_path.relative_to(ROOT)} => {target_namespace}")
     if dry_run:
         return
 
-    response = session.post(
-        f"{session.base_url}/api/v1/{tenant}/flows",
+    response = session.put(
+        f"{session.base_url}/api/v1/{tenant}/flows/{target_namespace}/{flow_id}",
         data=source.encode("utf-8"),
         headers={"Content-Type": "application/x-yaml"},
         timeout=30,
     )
+    if response.status_code == 404:
+        response = session.post(
+            f"{session.base_url}/api/v1/{tenant}/flows",
+            data=source.encode("utf-8"),
+            headers={"Content-Type": "application/x-yaml"},
+            timeout=30,
+        )
     ensure_success(response, f"Deploy flow {flow_path.name}")
 
 
