@@ -77,6 +77,8 @@ Patron actual:
 
 Ejemplos reales:
 
+- `ENV_VIMARX_TIMEOUT_SECONDS`
+- `ENV_VIMARX_VERIFY_TLS`
 - `ENV_BITRIX24_BASE_URL`
 - `ENV_BITRIX24_TIMEOUT_SECONDS`
 - `SECRET_BITRIX24_WEBHOOK_PATH`
@@ -288,6 +290,22 @@ En la infraestructura actual corresponden a:
 - `ENV_BITRIX24_TIMEOUT_SECONDS`
 
 Presencia verificada en VPS:
+
+- si
+
+### Runtime Analisis Credito: variables no sensibles
+
+Referenciadas hoy desde el flow `automations/analisis-credito/flows/renovacion_cruz_del_eje.yaml`:
+
+- `vimarx_timeout_seconds`
+- `vimarx_verify_tls`
+
+En la infraestructura actual corresponden a:
+
+- `ENV_VIMARX_TIMEOUT_SECONDS`
+- `ENV_VIMARX_VERIFY_TLS`
+
+Presencia requerida en VPS:
 
 - si
 
