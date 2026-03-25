@@ -1,0 +1,58 @@
+id: renovacion_cruz_del_eje
+namespace: redunisol
+
+description: Evalua renovacion de prestamos Cruz del Eje a partir del CUIL.
+
+labels:
+  env: prod
+  team: redunisol
+  kind: webhook
+  domain: analisis-credito
+
+tasks:
+  - id: evaluar_renovacion
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+      include:
+        - analisis_credito_renovacion/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: ghcr.io/kestra-io/pydata:latest
+    beforeCommands:
+      - pip install kestra requests > /dev/null
+    env:
+      TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
+      VIMARX_EVAL_BASE_URL: "{{ secret('SECRET_DEVEXPRESS_EVALUATE_API_BASE_URL') }}"
+      VIMARX_TIMEOUT_SECONDS: "{{ envs.vimarx_timeout_seconds }}"
+      VIMARX_VERIFY_TLS: "{{ envs.vimarx_verify_tls }}"
+    commands:
+      - python -m analisis_credito_renovacion.kestra_webhook_entrypoint
+
+outputs:
+  - id: ok
+    type: BOOLEAN
+    value: "{{ outputs.evaluar_renovacion.vars.ok }}"
+  - id: puede_renovar
+    type: BOOLEAN
+    value: "{{ outputs.evaluar_renovacion.vars.puede_renovar }}"
+  - id: saldo_renovacion
+    type: FLOAT
+    value: "{{ outputs.evaluar_renovacion.vars.saldo_renovacion }}"
+  - id: motivo
+    type: STRING
+    value: "{{ outputs.evaluar_renovacion.vars.motivo }}"
+  - id: cuil
+    type: STRING
+    value: "{{ outputs.evaluar_renovacion.vars.cuil }}"
+  - id: error
+    type: STRING
+    value: "{{ outputs.evaluar_renovacion.vars.error }}"
+
+triggers:
+  - id: webhook
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "{{ secret('ANALISIS_CREDITO_WEBHOOK_KEY') }}"
+    wait: true
+    returnOutputs: true
+    responseContentType: application/json
