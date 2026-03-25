@@ -80,6 +80,7 @@ Ejemplos reales:
 - `ENV_BITRIX24_TIMEOUT_SECONDS`
 - `SECRET_BITRIX24_WEBHOOK_PATH`
 - `SECRET_BITRIX24_FORM_WEBHOOK_KEY`
+- `SECRET_DEVEXPRESS_EVALUATE_API_BASE_URL`
 
 ## Estado Verificado En VPS
 
@@ -303,6 +304,37 @@ En la infraestructura actual corresponden a:
 Presencia verificada en VPS:
 
 - si
+
+### Runtime DevExpress Evaluate API: secrets
+
+Incorporado a partir de la documentacion tecnica bajo `untracked/`.
+
+Ejemplo de host para documentacion publica:
+
+- `https://internal-api.example.local:5050`
+
+Endpoints documentados:
+  - `/api/Empresa/Evaluate`
+  - `/api/Empresa/EvaluateObj`
+  - `/api/Empresa/EvaluateList`
+
+Secret cargado en runtime:
+
+- `DEVEXPRESS_EVALUATE_API_BASE_URL`
+
+En la infraestructura actual corresponde a:
+
+- `SECRET_DEVEXPRESS_EVALUATE_API_BASE_URL`
+
+Uso esperado desde un flow:
+
+- `{{ secret('DEVEXPRESS_EVALUATE_API_BASE_URL') }}`
+
+Importante:
+
+- se guarda solo el base URL
+- los paths concretos de la API siguen definidos por la automatizacion que la consuma
+- el valor real no debe copiarse en `.env.example` ni en documentacion publica versionada
 
 ## Cuando Usar Cada Tipo
 
