@@ -11,7 +11,7 @@ No define el flujo operativo actual. Su proposito es dejar registro de como se a
 Configuracion objetivo definida al iniciar la migracion:
 
 - cuenta owner: la cuenta GitHub de la empresa
-- repo: `redunisol-kestra`
+- repo: `redunisol-platform`
 - environments:
   - `kestra-dev`
   - `kestra-prod`
