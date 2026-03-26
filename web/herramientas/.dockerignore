@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+vendor
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/testing
+storage/framework/views
+.env
+npm-debug.log
+composer-setup.php

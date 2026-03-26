@@ -55,6 +55,97 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Herramientas: Laravel Serve",
+      "type": "shell",
+      "command": "php",
+      "args": [
+        "artisan",
+        "serve",
+        "--host=127.0.0.1",
+        "--port=3010"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/web/herramientas"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting Laravel development server.*",
+          "endsPattern": ".*http://127\\.0\\.0\\.1:3010.*"
+        }
+      }
+    },
+    {
+      "label": "Herramientas: Vite Dev",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/web/herramientas"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".*"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*VITE.*",
+          "endsPattern": ".*(Local|local):.*127\\.0\\.0\\.1:5173.*"
+        }
+      }
+    },
+    {
+      "label": "Herramientas: Start Local Dev",
+      "dependsOn": [
+        "Herramientas: Laravel Serve",
+        "Herramientas: Vite Dev"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Herramientas: Build Frontend",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/web/herramientas"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Herramientas: Docker Up",
+      "type": "shell",
+      "command": "docker",
+      "args": [
+        "compose",
+        "up",
+        "--build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/web/herramientas"
+      },
+      "problemMatcher": []
     }
   ]
 }
