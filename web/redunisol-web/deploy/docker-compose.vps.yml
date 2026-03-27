@@ -1,7 +1,6 @@
 services:
   web:
     image: ${WEB_IMAGE}
-    pull_policy: always
     ports:
       - "${WEB_BIND}"
     volumes:
@@ -13,7 +12,6 @@ services:
 
   php-fpm:
     image: ${APP_IMAGE}
-    pull_policy: always
     environment:
       APP_NAME: ${APP_NAME}
       APP_ENV: ${APP_ENV}
