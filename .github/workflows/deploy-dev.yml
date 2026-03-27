@@ -3,7 +3,7 @@ name: Deploy Dev
 on:
   push:
     branches:
-      - main
+      - dev
   workflow_dispatch:
     inputs:
       domain:
@@ -19,6 +19,17 @@ on:
           - contabilidad
 
 jobs:
+  guard-manual-dev-dispatch:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Allow manual dev deploy only from dev by Nasst
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${GITHUB_ACTOR}" = "Nasst" ]
+          [ "${GITHUB_REF}" = "refs/heads/dev" ]
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -50,10 +61,14 @@ jobs:
   deploy-dev-marketing-crm:
     runs-on: ubuntu-latest
     environment: kestra-dev
-    needs: detect-changes
+    needs:
+      - guard-manual-dev-dispatch
+      - detect-changes
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'marketing-crm')) ||
-      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.marketing-crm == 'true')
+      always() &&
+      (needs.guard-manual-dev-dispatch.result == 'success' || needs.guard-manual-dev-dispatch.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'marketing-crm')) ||
+      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.marketing-crm == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,10 +95,14 @@ jobs:
   deploy-dev-analisis-credito:
     runs-on: ubuntu-latest
     environment: kestra-dev
-    needs: detect-changes
+    needs:
+      - guard-manual-dev-dispatch
+      - detect-changes
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'analisis-credito')) ||
-      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.analisis-credito == 'true')
+      always() &&
+      (needs.guard-manual-dev-dispatch.result == 'success' || needs.guard-manual-dev-dispatch.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'analisis-credito')) ||
+      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.analisis-credito == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,10 +129,14 @@ jobs:
   deploy-dev-ahorros-amt:
     runs-on: ubuntu-latest
     environment: kestra-dev
-    needs: detect-changes
+    needs:
+      - guard-manual-dev-dispatch
+      - detect-changes
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'ahorros-amt')) ||
-      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.ahorros-amt == 'true')
+      always() &&
+      (needs.guard-manual-dev-dispatch.result == 'success' || needs.guard-manual-dev-dispatch.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'ahorros-amt')) ||
+      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.ahorros-amt == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,10 +163,14 @@ jobs:
   deploy-dev-cobranzas:
     runs-on: ubuntu-latest
     environment: kestra-dev
-    needs: detect-changes
+    needs:
+      - guard-manual-dev-dispatch
+      - detect-changes
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'cobranzas')) ||
-      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.cobranzas == 'true')
+      always() &&
+      (needs.guard-manual-dev-dispatch.result == 'success' || needs.guard-manual-dev-dispatch.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'cobranzas')) ||
+      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.cobranzas == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -170,10 +197,14 @@ jobs:
   deploy-dev-contabilidad:
     runs-on: ubuntu-latest
     environment: kestra-dev
-    needs: detect-changes
+    needs:
+      - guard-manual-dev-dispatch
+      - detect-changes
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'contabilidad')) ||
-      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.contabilidad == 'true')
+      always() &&
+      (needs.guard-manual-dev-dispatch.result == 'success' || needs.guard-manual-dev-dispatch.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.domain == 'all' || inputs.domain == 'contabilidad')) ||
+      (github.event_name != 'workflow_dispatch' && needs.detect-changes.outputs.contabilidad == 'true'))
     steps:
       - name: Checkout
         uses: actions/checkout@v4

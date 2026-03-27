@@ -3,7 +3,7 @@ name: Deploy Redunisol Web Dev
 on:
   push:
     branches:
-      - main
+      - dev
     paths:
       - 'web/redunisol-web/**'
       - '.github/workflows/deploy-redunisol-web-dev.yml'
@@ -31,6 +31,14 @@ jobs:
       SSH_USER: ${{ secrets.VPS_SSH_USER }}
       RUNTIME_ENV_KEY: ${{ secrets.RUNTIME_ENV_KEY }}
     steps:
+      - name: Allow manual dev deploy only from dev by Nasst
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${GITHUB_ACTOR}" = "Nasst" ]
+          [ "${GITHUB_REF}" = "refs/heads/dev" ]
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
