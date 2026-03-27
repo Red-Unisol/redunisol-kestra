@@ -150,11 +150,9 @@ jobs:
           trap 'rm -rf "$staging_dir"' EXIT
 
           install -d -m 755 "$target_dir"
-          install -m 600 "$staging_dir/.env" "$target_dir/.env"
-          install -m 644 "$staging_dir/docker-compose.yml" "$target_dir/docker-compose.yml"
 
           set -a
-          . "$target_dir/.env"
+          . "$staging_dir/.env"
           set +a
 
           app_host="${APP_URL#*://}"
@@ -165,12 +163,12 @@ jobs:
           echo "$ghcr_token" | docker login ghcr.io -u "$ghcr_username" --password-stdin
 
           cd "$target_dir"
-          docker compose --env-file .env config -q
-          docker compose --env-file .env pull
-          docker compose --env-file .env up -d --remove-orphans
-          docker compose --env-file .env ps
+          docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" config -q
+          docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" pull
+          docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" up -d --remove-orphans
+          docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" ps
 
-          docker compose --env-file .env exec -T php-fpm test -f /var/www/public/build/manifest.json
+          docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" exec -T php-fpm test -f /var/www/public/build/manifest.json
 
           status_code=""
           for attempt in $(seq 1 12); do
@@ -182,8 +180,27 @@ jobs:
           done
 
           if [ "$status_code" != "200" ]; then
-            docker compose --env-file .env logs --tail=120 php-fpm web
+            docker compose --env-file "$staging_dir/.env" -f "$staging_dir/docker-compose.yml" logs --tail=120 php-fpm web
             exit 1
+          fi
+
+          install -m 600 "$staging_dir/.env" "$target_dir/.env"
+          install -m 644 "$staging_dir/docker-compose.yml" "$target_dir/docker-compose.yml"
+
+          docker image prune -f >/dev/null
+
+          active_images="$(docker ps --format '{{.Image}}' | sort -u)"
+          stale_images=()
+          while IFS= read -r image_ref; do
+            [ -n "$image_ref" ] || continue
+            if printf '%s\n' "$active_images" | grep -Fxq "$image_ref"; then
+              continue
+            fi
+            stale_images+=("$image_ref")
+          done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E '^ghcr.io/red-unisol/redunisol-web-(php-fpm|nginx):' || true)
+
+          if [ "${#stale_images[@]}" -gt 0 ]; then
+            docker image rm "${stale_images[@]}" || true
           fi
           EOF
 
