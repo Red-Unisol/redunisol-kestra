@@ -58,7 +58,10 @@ def should_process_lead(
     lead: dict[str, Any],
     config: AppConfig,
 ) -> bool:
-    current_value = _required_lead_value(lead, config.fields.lead_processing_policy)
+    current_value = _optional_lead_value(lead, config.fields.lead_processing_policy)
+    if current_value is None:
+        return False
+
     expected_value = _resolve_enum_id(
         client,
         config.fields.lead_processing_policy,
@@ -154,17 +157,24 @@ def _first_multifield_value(raw_value: Any, field_name: str) -> str:
 
 
 def _required_lead_value(lead: dict[str, Any], field_name: str) -> Any:
-    value = lead.get(field_name)
+    value = _optional_lead_value(lead, field_name)
     if value is None:
         raise ValueError(f'El lead no contiene el campo requerido "{field_name}".')
+    return value
+
+
+def _optional_lead_value(lead: dict[str, Any], field_name: str) -> Any | None:
+    value = lead.get(field_name)
+    if value is None:
+        return None
 
     if isinstance(value, list):
         if not value:
-            raise ValueError(f'El lead no contiene el campo requerido "{field_name}".')
+            return None
         return value[0]
 
     if str(value).strip() == "":
-        raise ValueError(f'El lead no contiene el campo requerido "{field_name}".')
+        return None
 
     return value
 
