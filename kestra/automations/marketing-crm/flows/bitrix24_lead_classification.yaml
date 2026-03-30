@@ -1,16 +1,25 @@
-id: bitrix24_form_webhook
+id: bitrix24_lead_classification
 namespace: redunisol
 
-description: Recibe el payload del formulario, sincroniza contacto y lead en Bitrix24 y devuelve el resultado al caller.
+description: Clasifica un lead de Bitrix24 por lead_id y actualiza su estado final.
 
 labels:
   env: prod
   team: redunisol
-  kind: webhook
+  kind: internal
   integration: bitrix24
 
+inputs:
+  - id: lead_id
+    type: STRING
+    required: true
+  - id: force_processing
+    type: BOOLEAN
+    required: true
+    defaults: false
+
 tasks:
-  - id: cargar_formulario
+  - id: clasificar
     type: io.kestra.plugin.scripts.python.Commands
     namespaceFiles:
       enabled: true
@@ -22,7 +31,8 @@ tasks:
     beforeCommands:
       - pip install kestra > /dev/null
     env:
-      TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
+      LEAD_ID: "{{ inputs.lead_id }}"
+      FORCE_PROCESSING: "{{ inputs.force_processing }}"
       BITRIX24_BASE_URL: "{{ envs.bitrix24_base_url }}"
       BITRIX24_WEBHOOK_PATH: "{{ secret('BITRIX24_WEBHOOK_PATH') }}"
       BITRIX24_CONTACT_CUIL_FIELD: "{{ envs.bitrix24_contact_cuil_field }}"
@@ -39,49 +49,30 @@ tasks:
       BITRIX24_LEAD_STATUS_REJECTED: "{{ envs.bitrix24_lead_status_rejected }}"
       BITRIX24_TIMEOUT_SECONDS: "{{ envs.bitrix24_timeout_seconds }}"
     commands:
-      - python -m bitrix24_form_flow.kestra_form_intake_entrypoint
-
-  - id: clasificar_lead
-    type: io.kestra.plugin.core.flow.Subflow
-    namespace: "{{ flow.namespace }}"
-    flowId: bitrix24_lead_classification
-    inputs:
-      lead_id: "{{ outputs.cargar_formulario.vars.lead_id }}"
-      force_processing: true
-    wait: true
-    transmitFailed: true
-    runIf: "{{ outputs.cargar_formulario.vars.ok }}"
+      - python -m bitrix24_form_flow.kestra_lead_classification_entrypoint
 
 outputs:
   - id: ok
     type: BOOLEAN
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.ok : outputs.cargar_formulario.vars.ok }}"
+    value: "{{ outputs.clasificar.vars.ok }}"
   - id: qualified
     type: BOOLEAN
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.qualified : false }}"
+    value: "{{ outputs.clasificar.vars.qualified }}"
   - id: contact_id
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.contact_id : outputs.cargar_formulario.vars.contact_id }}"
+    value: "{{ outputs.clasificar.vars.contact_id }}"
   - id: lead_id
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.lead_id : outputs.cargar_formulario.vars.lead_id }}"
+    value: "{{ outputs.clasificar.vars.lead_id }}"
   - id: lead_status
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.lead_status : '' }}"
+    value: "{{ outputs.clasificar.vars.lead_status }}"
   - id: action
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.action : outputs.cargar_formulario.vars.action }}"
+    value: "{{ outputs.clasificar.vars.action }}"
   - id: reason
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.reason : outputs.cargar_formulario.vars.reason }}"
+    value: "{{ outputs.clasificar.vars.reason }}"
   - id: message
     type: STRING
-    value: "{{ outputs.cargar_formulario.vars.ok ? outputs.clasificar_lead.outputs.message : outputs.cargar_formulario.vars.message }}"
-
-triggers:
-  - id: webhook
-    type: io.kestra.plugin.core.trigger.Webhook
-    key: "{{ secret('BITRIX24_FORM_WEBHOOK_KEY') }}"
-    wait: true
-    returnOutputs: true
-    responseContentType: application/json
+    value: "{{ outputs.clasificar.vars.message }}"

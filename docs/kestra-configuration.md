@@ -274,10 +274,16 @@ Usados por deploy:
 
 ### Runtime Bitrix24: variables no sensibles
 
-Referenciadas hoy desde el flow `kestra/automations/marketing-crm/flows/bitrix24_form_webhook.yaml`:
+Referenciadas hoy desde los flows:
+
+- `kestra/automations/marketing-crm/flows/bitrix24_form_webhook.yaml`
+- `kestra/automations/marketing-crm/flows/bitrix24_lead_classification.yaml`
 
 - `bitrix24_base_url`
 - `bitrix24_contact_cuil_field`
+- `bitrix24_lead_processing_policy_field`
+- `bitrix24_lead_processing_policy_skip`
+- `bitrix24_lead_processing_policy_process`
 - `bitrix24_lead_cuil_field`
 - `bitrix24_lead_employment_status_field`
 - `bitrix24_lead_payment_bank_field`
@@ -292,6 +298,9 @@ En la infraestructura actual corresponden a:
 
 - `ENV_BITRIX24_BASE_URL`
 - `ENV_BITRIX24_CONTACT_CUIL_FIELD`
+- `ENV_BITRIX24_LEAD_PROCESSING_POLICY_FIELD`
+- `ENV_BITRIX24_LEAD_PROCESSING_POLICY_SKIP`
+- `ENV_BITRIX24_LEAD_PROCESSING_POLICY_PROCESS`
 - `ENV_BITRIX24_LEAD_CUIL_FIELD`
 - `ENV_BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD`
 - `ENV_BITRIX24_LEAD_PAYMENT_BANK_FIELD`
