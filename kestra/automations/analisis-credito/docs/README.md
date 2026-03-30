@@ -94,10 +94,12 @@ Secrets:
 - `CIDI_PASS`
 - `CIDI_CLIENT_SECRET`
 - `CAJA_ENCRYPT_PASS`
-- `CAJA_SEED_TOKEN`
-- `CAJA_PERMISSIONS_BODY`
-- `CAJA_PERMISSIONS_PLAINTEXT`
 - `ANALISIS_CREDITO_CAJA_WEBHOOK_KEY`
+
+Notas:
+
+- `CAJA_SEED_TOKEN`, `CAJA_PERMISSIONS_BODY` y `CAJA_PERMISSIONS_PLAINTEXT` son opcionales
+- si no estan cargados, el flow intenta obtener o construir esos valores durante la ejecucion
 
 ### Namespace files
 
