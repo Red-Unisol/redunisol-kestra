@@ -95,11 +95,19 @@ Opcionales para override de campos del lead:
 - `BITRIX24_LEAD_PROCESSING_POLICY_SKIP`
 - `BITRIX24_LEAD_PROCESSING_POLICY_PROCESS`
 - `BITRIX24_LEAD_CUIL_FIELD`
+- `BITRIX24_LEAD_DNI_FIELD`
 - `BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD`
 - `BITRIX24_LEAD_PAYMENT_BANK_FIELD`
 - `BITRIX24_LEAD_PROVINCE_FIELD`
 - `BITRIX24_LEAD_SOURCE_FIELD`
+- `BITRIX24_LEAD_MEMBER_STATUS_FIELD`
 - `BITRIX24_TIMEOUT_SECONDS`
+
+Opcionales para la consulta de socio en core:
+
+- `CORE_SOCIO_API_BASE_URL`
+- `CORE_SOCIO_TIMEOUT_SECONDS`
+- `CORE_SOCIO_VERIFY_TLS`
 
 Valores actualmente confirmados en el CRM:
 
@@ -108,10 +116,12 @@ Valores actualmente confirmados en el CRM:
 - `BITRIX24_LEAD_PROCESSING_POLICY_PROCESS=Procesar`
 - `BITRIX24_CONTACT_CUIL_FIELD=UF_CRM_65B7E48033FCD`
 - `BITRIX24_LEAD_CUIL_FIELD=UF_CRM_1693840106704`
+- `BITRIX24_LEAD_DNI_FIELD=UF_CRM_LEAD_1711392404332`
 - `BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD=UF_CRM_1714071903`
 - `BITRIX24_LEAD_PAYMENT_BANK_FIELD=UF_CRM_LEAD_1711458190312`
 - `BITRIX24_LEAD_PROVINCE_FIELD=UF_CRM_64E65D2B2136C`
 - `BITRIX24_LEAD_SOURCE_FIELD=UF_CRM_1722365051`
+- `BITRIX24_LEAD_MEMBER_STATUS_FIELD=UF_CRM_1728998183` (`Es socio`)
 - `BITRIX24_LEAD_REJECTION_REASON_FIELD=UF_CRM_REJECTION_REASON`
 - estado de lead para calificados: `UC_64AUC9` (`RESULTADO GANADO`)
 - estado de lead para rechazados: `UC_1P8I07` (`RESULTADO PERDIDO`)
@@ -121,9 +131,18 @@ Comportamiento esperado al rechazar:
 - el lead pasa al estado `RESULTADO PERDIDO`
 - el motivo específico se guarda en `Motivo Rechazo` usando el enum del CRM
 
+Comportamiento esperado en clasificacion:
+
+- la clasificacion consulta el core por documento derivado del CUIL
+- si encuentra socio, escribe `Si` en `Es socio`
+- si no encuentra socio, escribe `No` en `Es socio`
+- si el core no responde dentro de `2` segundos, o falla tecnicamente, escribe `Desconocido`
+- la clasificacion ya no depende de que el `origenFormulario` del lead exista en el catalogo del formulario
+
 Comportamiento esperado al crear el lead:
 
 - el intake crea el lead con la politica `No procesar`
+- el intake carga `CUIL` y tambien deriva `DNI` removiendo los primeros 2 digitos y el ultimo; si el resultado empieza con `0`, ese cero se elimina
 - el flow de clasificacion por `lead_id` puede saltarse el procesamiento si no se lo fuerza y la politica sigue distinta de `Procesar`
 - si otro origen crea el lead sin completar `Politica procesamiento`, el valor vacio tambien se interpreta como `No procesar`
 

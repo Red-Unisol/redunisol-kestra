@@ -7,16 +7,24 @@ import os
 DEFAULT_LEAD_FIELDS = {
     "processing_policy": "UF_CRM_PROCESSING_POLICY",
     "cuil": "UF_CRM_1693840106704",
+    "dni": "UF_CRM_LEAD_1711392404332",
     "situacion_laboral": "UF_CRM_1714071903",
     "banco_cobro": "UF_CRM_LEAD_1711458190312",
     "provincia": "UF_CRM_64E65D2B2136C",
     "origen": "UF_CRM_1722365051",
     "rejection_reason": "UF_CRM_REJECTION_REASON",
+    "member_status": "UF_CRM_1728998183",
 }
 
 DEFAULT_PROCESSING_POLICIES = {
     "skip": "No procesar",
     "process": "Procesar",
+}
+
+DEFAULT_MEMBER_STATUS_VALUES = {
+    "yes": "Si",
+    "no": "No",
+    "unknown": "Desconocido",
 }
 
 
@@ -25,11 +33,13 @@ class BitrixFieldsConfig:
     contact_cuil: str
     lead_processing_policy: str
     lead_cuil: str
+    lead_dni: str
     lead_employment_status: str
     lead_payment_bank: str
     lead_province: str
     lead_source: str
     lead_rejection_reason: str
+    lead_member_status: str
 
 
 @dataclass(frozen=True)
@@ -45,12 +55,28 @@ class ProcessingPolicyConfig:
 
 
 @dataclass(frozen=True)
+class MemberStatusConfig:
+    yes: str
+    no: str
+    unknown: str
+
+
+@dataclass(frozen=True)
+class CoreSocioConfig:
+    base_url: str
+    timeout_seconds: int
+    verify_tls: bool
+
+
+@dataclass(frozen=True)
 class AppConfig:
     base_url: str
     webhook_path: str
     fields: BitrixFieldsConfig
     lead_statuses: LeadStatusesConfig
     processing_policy: ProcessingPolicyConfig
+    member_status: MemberStatusConfig
+    core_socio: CoreSocioConfig
     timeout_seconds: int
 
 
@@ -67,6 +93,7 @@ def load_config(env: dict[str, str] | None = None) -> AppConfig:
                 DEFAULT_LEAD_FIELDS["processing_policy"],
             ),
             lead_cuil=source.get("BITRIX24_LEAD_CUIL_FIELD", DEFAULT_LEAD_FIELDS["cuil"]),
+            lead_dni=source.get("BITRIX24_LEAD_DNI_FIELD", DEFAULT_LEAD_FIELDS["dni"]),
             lead_employment_status=source.get(
                 "BITRIX24_LEAD_EMPLOYMENT_STATUS_FIELD",
                 DEFAULT_LEAD_FIELDS["situacion_laboral"],
@@ -87,6 +114,10 @@ def load_config(env: dict[str, str] | None = None) -> AppConfig:
                 "BITRIX24_LEAD_REJECTION_REASON_FIELD",
                 DEFAULT_LEAD_FIELDS["rejection_reason"],
             ),
+            lead_member_status=source.get(
+                "BITRIX24_LEAD_MEMBER_STATUS_FIELD",
+                DEFAULT_LEAD_FIELDS["member_status"],
+            ),
         ),
         lead_statuses=LeadStatusesConfig(
             qualified=_required_env(source, "BITRIX24_LEAD_STATUS_QUALIFIED"),
@@ -101,6 +132,25 @@ def load_config(env: dict[str, str] | None = None) -> AppConfig:
                 "BITRIX24_LEAD_PROCESSING_POLICY_PROCESS",
                 DEFAULT_PROCESSING_POLICIES["process"],
             ),
+        ),
+        member_status=MemberStatusConfig(
+            yes=source.get(
+                "BITRIX24_LEAD_MEMBER_STATUS_YES",
+                DEFAULT_MEMBER_STATUS_VALUES["yes"],
+            ),
+            no=source.get(
+                "BITRIX24_LEAD_MEMBER_STATUS_NO",
+                DEFAULT_MEMBER_STATUS_VALUES["no"],
+            ),
+            unknown=source.get(
+                "BITRIX24_LEAD_MEMBER_STATUS_UNKNOWN",
+                DEFAULT_MEMBER_STATUS_VALUES["unknown"],
+            ),
+        ),
+        core_socio=CoreSocioConfig(
+            base_url=_strip_trailing_slashes(source.get("CORE_SOCIO_API_BASE_URL", "").strip()),
+            timeout_seconds=_optional_int(source, "CORE_SOCIO_TIMEOUT_SECONDS", default=2),
+            verify_tls=_optional_bool(source, "CORE_SOCIO_VERIFY_TLS", default=False),
         ),
         timeout_seconds=_optional_int(source, "BITRIX24_TIMEOUT_SECONDS", default=30),
     )
@@ -127,6 +177,17 @@ def _optional_int(env: dict[str, str], key: str, *, default: int) -> int:
         raise ValueError(f'La variable "{key}" debe ser mayor a cero.')
 
     return value
+
+
+def _optional_bool(env: dict[str, str], key: str, *, default: bool) -> bool:
+    raw = env.get(key, "").strip().lower()
+    if not raw:
+        return default
+    if raw in {"1", "true", "yes", "y"}:
+        return True
+    if raw in {"0", "false", "no", "n"}:
+        return False
+    raise ValueError(f'La variable "{key}" debe ser booleana.')
 
 
 def _strip_trailing_slashes(value: str) -> str:

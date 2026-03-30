@@ -19,7 +19,7 @@ class NormalizedInput:
     province: CatalogItem
     employment_status: CatalogItem
     payment_bank: CatalogItem
-    lead_source: CatalogItem
+    lead_source: CatalogItem | None
 
 
 def parse_body(body: str, content_type: str | None = None) -> dict[str, Any]:
@@ -39,11 +39,19 @@ def parse_body(body: str, content_type: str | None = None) -> dict[str, Any]:
     return _parse_form_body(body)
 
 
-def normalize_business_input(payload: dict[str, Any]) -> NormalizedInput:
+def normalize_business_input(
+    payload: dict[str, Any],
+    *,
+    require_lead_source: bool = True,
+) -> NormalizedInput:
     if not isinstance(payload, dict):
         raise ValueError("El payload debe ser un objeto JSON o un body de formulario parseable.")
 
     cuil_digits, cuil_formatted = normalize_cuil(_first(payload, ["cuil"]))
+    raw_lead_source = _optional_first(
+        payload,
+        ["lead_source", "origen_lead", "origen_formulario", "origenFormulario"],
+    )
 
     return NormalizedInput(
         full_name=normalize_full_name(_first(payload, ["full_name", "nombre_completo", "name"])),
@@ -63,10 +71,7 @@ def normalize_business_input(payload: dict[str, Any]) -> NormalizedInput:
             _first(payload, ["payment_bank", "banco_cobro", "bancoCobroCliente"]),
             "payment_bank",
         ),
-        lead_source=ORIGENES_LEAD.resolve(
-            _first(payload, ["lead_source", "origen_lead", "origen_formulario", "origenFormulario"]),
-            "lead_source",
-        ),
+        lead_source=_resolve_lead_source(raw_lead_source, require_lead_source=require_lead_source),
     )
 
 
@@ -91,3 +96,23 @@ def _first(payload: dict[str, Any], keys: list[str]) -> Any:
         if key in payload and str(payload[key]).strip():
             return payload[key]
     raise ValueError(f"Falta el campo requerido: {keys[0]}.")
+
+
+def _optional_first(payload: dict[str, Any], keys: list[str]) -> Any | None:
+    for key in keys:
+        if key in payload and str(payload[key]).strip():
+            return payload[key]
+    return None
+
+
+def _resolve_lead_source(
+    raw_value: Any | None,
+    *,
+    require_lead_source: bool,
+) -> CatalogItem | None:
+    if raw_value is None:
+        if require_lead_source:
+            raise ValueError("Falta el campo requerido: lead_source.")
+        return None
+
+    return ORIGENES_LEAD.resolve(raw_value, "lead_source")

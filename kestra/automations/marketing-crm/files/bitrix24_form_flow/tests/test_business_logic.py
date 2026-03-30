@@ -8,7 +8,9 @@ from bitrix24_form_flow.form_processor.business_logic import (
     process_form_body,
     process_submission,
 )
+from bitrix24_form_flow.form_processor.core_socio import CoreSocioResult
 from bitrix24_form_flow.form_processor.input_parser import normalize_business_input, parse_body
+from bitrix24_form_flow.form_processor.lead_service import _derive_dni_from_cuil
 from bitrix24_form_flow.form_processor.qualification import evaluate_qualification
 
 
@@ -52,6 +54,13 @@ class FakeBitrixClient:
                         {"ID": "3953", "VALUE": "PUBLICO NACIONAL"},
                         {"ID": "3967", "VALUE": "NO SON SOCIOS NI QUIEREN PRESTAMO"},
                     ]
+                },
+                "UF_CRM_1728998183": {
+                    "items": [
+                        {"ID": "2617", "VALUE": "Si"},
+                        {"ID": "2619", "VALUE": "No"},
+                        {"ID": "4053", "VALUE": "Desconocido"},
+                    ]
                 }
             }
 
@@ -82,6 +91,7 @@ class BusinessLogicTests(unittest.TestCase):
             "BITRIX24_LEAD_STATUS_QUALIFIED": "QUALIFIED",
             "BITRIX24_LEAD_STATUS_REJECTED": "UC_1P8I07",
             "BITRIX24_LEAD_REJECTION_REASON_FIELD": "UF_CRM_REJECTION_REASON",
+            "BITRIX24_LEAD_MEMBER_STATUS_FIELD": "UF_CRM_1728998183",
         }
 
     def test_parse_form_urlencoded_body(self) -> None:
@@ -157,7 +167,15 @@ class BusinessLogicTests(unittest.TestCase):
 
         self.assertEqual(
             [method for method, _ in client.calls],
-            ["crm.contact.list", "crm.contact.add", "crm.lead.fields", "crm.lead.add", "crm.lead.get", "crm.lead.update"],
+            [
+                "crm.contact.list",
+                "crm.contact.add",
+                "crm.lead.fields",
+                "crm.lead.add",
+                "crm.lead.get",
+                "crm.lead.fields",
+                "crm.lead.update",
+            ],
         )
         self.assertTrue(result["ok"])
         self.assertTrue(result["qualified"])
@@ -168,7 +186,9 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[0][1]["filter"]["UF_CONTACT_CUIL"], "20876543219")
         self.assertEqual(client.calls[1][1]["fields"]["UF_CONTACT_CUIL"], "20876543219")
         self.assertEqual(client.calls[3][1]["fields"]["UF_CRM_1693840106704"], "20876543219")
+        self.assertEqual(client.calls[3][1]["fields"]["UF_CRM_LEAD_1711392404332"], "87654321")
         self.assertEqual(client.calls[3][1]["fields"]["UF_CRM_PROCESSING_POLICY"], "4041")
+        self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_1728998183"], "4053")
 
     def test_process_form_body_returns_json_ready_payload_for_form_body(self) -> None:
         client = FakeBitrixClient()
@@ -208,12 +228,14 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(result["lead_status"], "UC_1P8I07")
         self.assertEqual(result["reason"], "province_not_eligible")
 
-        self.assertEqual(client.calls[-3][0], "crm.lead.get")
+        self.assertEqual(client.calls[-4][0], "crm.lead.get")
+        self.assertEqual(client.calls[-3][0], "crm.lead.fields")
         self.assertEqual(client.calls[-2][0], "crm.lead.fields")
         last_method, last_payload = client.calls[-1]
         self.assertEqual(last_method, "crm.lead.update")
         self.assertEqual(last_payload["fields"]["STATUS_ID"], "UC_1P8I07")
         self.assertEqual(last_payload["fields"]["UF_CRM_REJECTION_REASON"], "3933")
+        self.assertEqual(last_payload["fields"]["UF_CRM_1728998183"], "4053")
 
     def test_ingest_submission_sets_processing_policy_to_skip(self) -> None:
         client = FakeBitrixClient()
@@ -239,6 +261,10 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[-2][0], "crm.lead.fields")
         self.assertEqual(client.calls[-1][0], "crm.lead.add")
         self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_PROCESSING_POLICY"], "4041")
+        self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_LEAD_1711392404332"], "87654321")
+
+    def test_derive_dni_from_cuil_strips_prefix_suffix_and_leading_zero(self) -> None:
+        self.assertEqual(_derive_dni_from_cuil("20012345675"), "1234567")
 
     def test_classify_lead_skips_when_processing_policy_is_not_process(self) -> None:
         client = FakeBitrixClient()
@@ -270,6 +296,73 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(result["action"], "skipped")
         self.assertEqual(result["reason"], "processing_disabled")
         self.assertEqual(result["lead_status"], "NEW")
+
+    def test_classify_lead_sets_member_status_yes_when_core_finds_match(self) -> None:
+        client = FakeBitrixClient()
+        client.leads[404] = {
+            "ID": "404",
+            "CONTACT_ID": "101",
+            "STATUS_ID": "NEW",
+            "TITLE": "Luis Diaz",
+            "NAME": "Luis",
+            "LAST_NAME": "Diaz",
+            "EMAIL": [{"VALUE": "luis@example.com", "VALUE_TYPE": "WORK"}],
+            "PHONE": [{"VALUE": "+5493511234567", "VALUE_TYPE": "WORK"}],
+            "UF_CRM_PROCESSING_POLICY": "4043",
+            "UF_CRM_1693840106704": "20876543219",
+            "UF_CRM_1714071903": "2565",
+            "UF_CRM_LEAD_1711458190312": ["449"],
+            "UF_CRM_64E65D2B2136C": "209",
+            "UF_CRM_1722365051": "2425",
+        }
+
+        result = classify_lead(
+            404,
+            env=self.env,
+            bitrix_client=client,
+            socio_resolver=lambda cuil, config, logger: CoreSocioResult(
+                bitrix_label=config.member_status.yes,
+                is_member=True,
+                reason="member_found",
+            ),
+            logger=SilentLogger(),
+            force_processing=False,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["lead_status"], "QUALIFIED")
+        self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_1728998183"], "2617")
+
+    def test_classify_lead_ignores_unsupported_bitrix_source(self) -> None:
+        client = FakeBitrixClient()
+        client.leads[405] = {
+            "ID": "405",
+            "CONTACT_ID": "101",
+            "STATUS_ID": "NEW",
+            "TITLE": "Luis Diaz - Finguru",
+            "NAME": "Luis",
+            "LAST_NAME": "Diaz",
+            "EMAIL": [{"VALUE": "luis@example.com", "VALUE_TYPE": "WORK"}],
+            "PHONE": [{"VALUE": "+5493511234567", "VALUE_TYPE": "WORK"}],
+            "UF_CRM_PROCESSING_POLICY": "4043",
+            "UF_CRM_1693840106704": "20876543219",
+            "UF_CRM_1714071903": "2565",
+            "UF_CRM_LEAD_1711458190312": ["449"],
+            "UF_CRM_64E65D2B2136C": "209",
+            "UF_CRM_1722365051": "3729",
+        }
+
+        result = classify_lead(
+            405,
+            env=self.env,
+            bitrix_client=client,
+            logger=SilentLogger(),
+            force_processing=False,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["action"], "qualified")
+        self.assertEqual(result["lead_status"], "QUALIFIED")
 
     def test_classify_lead_skips_when_processing_policy_is_empty(self) -> None:
         client = FakeBitrixClient()

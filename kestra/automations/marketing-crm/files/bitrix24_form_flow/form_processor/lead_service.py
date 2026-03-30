@@ -15,6 +15,9 @@ def create_lead(
     contact_id: int,
     logger: Logger,
 ) -> int:
+    if submission.lead_source is None:
+        raise ValueError("El lead_source es obligatorio para crear leads desde el formulario.")
+
     logger.info(f"Creando lead para el contacto {contact_id}.")
     lead_id = client.call(
         "crm.lead.add",
@@ -31,6 +34,7 @@ def create_lead(
                     config.processing_policy.skip,
                 ),
                 config.fields.lead_cuil: submission.cuil_digits,
+                config.fields.lead_dni: _derive_dni_from_cuil(submission.cuil_digits),
                 config.fields.lead_employment_status: submission.employment_status.bitrix_id,
                 config.fields.lead_payment_bank: [submission.payment_bank.bitrix_id],
                 config.fields.lead_province: submission.province.bitrix_id,
@@ -82,9 +86,8 @@ def build_submission_from_lead(
         "province": _required_lead_value(lead, config.fields.lead_province),
         "employment_status": _required_lead_value(lead, config.fields.lead_employment_status),
         "payment_bank": _required_lead_value(lead, config.fields.lead_payment_bank),
-        "lead_source": _required_lead_value(lead, config.fields.lead_source),
     }
-    return normalize_business_input(payload)
+    return normalize_business_input(payload, require_lead_source=False)
 
 
 def update_lead_status(
@@ -93,11 +96,18 @@ def update_lead_status(
     lead_id: int,
     qualified: bool,
     rejection_reason: str | None,
+    member_status_label: str | None,
     logger: Logger,
 ) -> str:
     status_id = config.lead_statuses.qualified if qualified else config.lead_statuses.rejected
     logger.info(f"Actualizando estado del lead {lead_id} a {status_id}.")
     fields = {"STATUS_ID": status_id}
+    if member_status_label:
+        fields[config.fields.lead_member_status] = _resolve_enum_id(
+            client,
+            config.fields.lead_member_status,
+            member_status_label,
+        )
     if not qualified and rejection_reason:
         fields[config.fields.lead_rejection_reason] = _resolve_rejection_reason_enum_id(
             client,
@@ -177,4 +187,13 @@ def _optional_lead_value(lead: dict[str, Any], field_name: str) -> Any | None:
         return None
 
     return value
+
+
+def _derive_dni_from_cuil(cuil_digits: str) -> str:
+    digits = "".join(ch for ch in str(cuil_digits or "") if ch.isdigit())
+    if len(digits) != 11:
+        raise ValueError("No se puede derivar el DNI: el CUIL debe contener 11 digitos.")
+
+    dni = digits[2:10].lstrip("0")
+    return dni or "0"
 

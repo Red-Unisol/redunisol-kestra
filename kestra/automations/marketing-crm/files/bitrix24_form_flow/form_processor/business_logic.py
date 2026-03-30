@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from typing import Any
+from collections.abc import Callable
 
 from .bitrix_client import BitrixClient
 from .config import load_config
 from .contact_service import upsert_contact
+from .core_socio import CoreSocioResult, resolve_member_status
 from .input_parser import normalize_business_input, parse_body
 from .lead_service import (
     build_submission_from_lead,
@@ -24,6 +26,7 @@ def process_form_body(
     content_type: str | None = None,
     env: dict[str, str] | None = None,
     bitrix_client: Any | None = None,
+    socio_resolver: Callable[[str, Any, Logger], CoreSocioResult] | None = None,
     logger: Logger | None = None,
 ) -> dict[str, object]:
     intake_result = ingest_form_body(
@@ -31,6 +34,7 @@ def process_form_body(
         content_type=content_type,
         env=env,
         bitrix_client=bitrix_client,
+        socio_resolver=socio_resolver,
         logger=logger,
     )
     if not intake_result.get("ok"):
@@ -44,6 +48,7 @@ def process_form_body(
         lead_id,
         env=env,
         bitrix_client=bitrix_client,
+        socio_resolver=socio_resolver,
         logger=logger,
         force_processing=True,
     )
@@ -54,9 +59,16 @@ def process_submission(
     *,
     env: dict[str, str] | None = None,
     bitrix_client: Any | None = None,
+    socio_resolver: Callable[[str, Any, Logger], CoreSocioResult] | None = None,
     logger: Logger | None = None,
 ) -> dict[str, object]:
-    intake_result = ingest_submission(payload, env=env, bitrix_client=bitrix_client, logger=logger)
+    intake_result = ingest_submission(
+        payload,
+        env=env,
+        bitrix_client=bitrix_client,
+        socio_resolver=socio_resolver,
+        logger=logger,
+    )
     if not intake_result.get("ok"):
         return intake_result
 
@@ -68,6 +80,7 @@ def process_submission(
         lead_id,
         env=env,
         bitrix_client=bitrix_client,
+        socio_resolver=socio_resolver,
         logger=logger,
         force_processing=True,
     )
@@ -79,10 +92,17 @@ def ingest_form_body(
     content_type: str | None = None,
     env: dict[str, str] | None = None,
     bitrix_client: Any | None = None,
+    socio_resolver: Callable[[str, Any, Logger], CoreSocioResult] | None = None,
     logger: Logger | None = None,
 ) -> dict[str, object]:
     payload = parse_body(body, content_type)
-    return ingest_submission(payload, env=env, bitrix_client=bitrix_client, logger=logger)
+    return ingest_submission(
+        payload,
+        env=env,
+        bitrix_client=bitrix_client,
+        socio_resolver=socio_resolver,
+        logger=logger,
+    )
 
 
 def ingest_submission(
@@ -90,6 +110,7 @@ def ingest_submission(
     *,
     env: dict[str, str] | None = None,
     bitrix_client: Any | None = None,
+    socio_resolver: Callable[[str, Any, Logger], CoreSocioResult] | None = None,
     logger: Logger | None = None,
 ) -> dict[str, object]:
     active_logger = logger or create_logger()
@@ -124,6 +145,7 @@ def classify_lead(
     *,
     env: dict[str, str] | None = None,
     bitrix_client: Any | None = None,
+    socio_resolver: Callable[[str, Any, Logger], CoreSocioResult] | None = None,
     logger: Logger | None = None,
     force_processing: bool = False,
 ) -> dict[str, object]:
@@ -131,6 +153,7 @@ def classify_lead(
     contact_id: int | None = None
     lead_status: str | None = None
     lead_id_int = int(lead_id)
+    member_status_label: str | None = None
     qualification = QualificationResult(
         qualified=False,
         reason="not_evaluated",
@@ -157,6 +180,10 @@ def classify_lead(
             )
 
         submission = build_submission_from_lead(lead, config)
+        member_lookup = socio_resolver or resolve_member_status
+        member_status = member_lookup(submission.cuil_digits, config, active_logger)
+        member_status_label = member_status.bitrix_label
+        active_logger.info(f"Resultado de consulta de socio: {member_status.reason}.")
         qualification = evaluate_qualification(submission)
         active_logger.info(f"Resultado de calificacion: {qualification.reason}.")
 
@@ -166,6 +193,7 @@ def classify_lead(
             lead_id_int,
             qualification.qualified,
             qualification.rejection_label if not qualification.qualified else None,
+            member_status_label,
             active_logger,
         )
 

@@ -29,7 +29,7 @@ tasks:
       type: io.kestra.plugin.scripts.runner.docker.Docker
     containerImage: ghcr.io/kestra-io/pydata:latest
     beforeCommands:
-      - pip install kestra > /dev/null
+      - pip install kestra requests > /dev/null
     env:
       LEAD_ID: "{{ inputs.lead_id }}"
       FORCE_PROCESSING: "{{ inputs.force_processing }}"
@@ -48,6 +48,9 @@ tasks:
       BITRIX24_LEAD_STATUS_QUALIFIED: "{{ envs.bitrix24_lead_status_qualified }}"
       BITRIX24_LEAD_STATUS_REJECTED: "{{ envs.bitrix24_lead_status_rejected }}"
       BITRIX24_TIMEOUT_SECONDS: "{{ envs.bitrix24_timeout_seconds }}"
+      CORE_SOCIO_API_BASE_URL: "{{ secret('DEVEXPRESS_EVALUATE_API_BASE_URL') }}"
+      CORE_SOCIO_TIMEOUT_SECONDS: "2"
+      CORE_SOCIO_VERIFY_TLS: "{{ envs.vimarx_verify_tls }}"
     commands:
       - python -m bitrix24_form_flow.kestra_lead_classification_entrypoint
 
