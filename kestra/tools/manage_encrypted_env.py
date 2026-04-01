@@ -64,6 +64,12 @@ def add_common_file_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--input", required=True, help="Path to the input file.")
     parser.add_argument("--output", required=True, help="Path to the output file.")
     parser.add_argument(
+        "--output-format",
+        choices=["human", "runtime"],
+        default="human",
+        help="For decrypt operations, choose whether SECRET_* values are written in human-readable plaintext or runtime-ready format.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite the output file if it already exists.",
@@ -72,6 +78,12 @@ def add_common_file_args(parser: argparse.ArgumentParser) -> None:
 
 def add_common_many_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--key-file", required=True, help="Path to the key file.")
+    parser.add_argument(
+        "--output-format",
+        choices=["human", "runtime"],
+        default="human",
+        help="For decrypt operations, choose whether SECRET_* values are written in human-readable plaintext or runtime-ready format.",
+    )
     parser.add_argument(
         "--pair",
         action="append",
@@ -360,6 +372,17 @@ def encrypt_file(key_file: Path, input_path: Path, output_path: Path, force: boo
 
 
 def decrypt_file(key_file: Path, input_path: Path, output_path: Path, force: bool) -> int:
+    return decrypt_file_with_format(key_file, input_path, output_path, force, output_format="human")
+
+
+def decrypt_file_with_format(
+    key_file: Path,
+    input_path: Path,
+    output_path: Path,
+    force: bool,
+    *,
+    output_format: str,
+) -> int:
     try:
         aessiv = load_aessiv(key_file)
         fernet = load_fernet(key_file)
@@ -371,6 +394,9 @@ def decrypt_file(key_file: Path, input_path: Path, output_path: Path, force: boo
             plaintext = decrypt_env_lines(aessiv, ciphertext)
         else:
             plaintext = decrypt_legacy_blob(fernet, ciphertext)
+
+        if output_format == "runtime":
+            plaintext = prepare_plaintext_for_runtime(plaintext)
 
         write_output(output_path, plaintext, force)
     except (FileNotFoundError, ValueError, FileExistsError) as exc:
@@ -387,6 +413,7 @@ def process_many(
     pairs: list[tuple[Path, Path]],
     force: bool,
     operation: str,
+    output_format: str = "human",
 ) -> int:
     try:
         aessiv = load_aessiv(key_file)
@@ -404,6 +431,9 @@ def process_many(
                     output_bytes = decrypt_env_lines(aessiv, input_bytes)
                 else:
                     output_bytes = decrypt_legacy_blob(fernet, input_bytes)
+
+                if output_format == "runtime":
+                    output_bytes = prepare_plaintext_for_runtime(output_bytes)
             else:
                 return fail(f"Unknown operation: {operation}")
 
@@ -431,7 +461,13 @@ def main() -> int:
             return fail(str(exc))
 
         operation = "encrypt" if args.command == "encrypt-many" else "decrypt"
-        return process_many(Path(args.key_file), pairs, args.force, operation)
+        return process_many(
+            Path(args.key_file),
+            pairs,
+            args.force,
+            operation,
+            output_format=args.output_format,
+        )
 
     key_file = Path(args.key_file)
     input_path = Path(args.input)
@@ -440,7 +476,13 @@ def main() -> int:
     if args.command == "encrypt":
         return encrypt_file(key_file, input_path, output_path, args.force)
     if args.command == "decrypt":
-        return decrypt_file(key_file, input_path, output_path, args.force)
+        return decrypt_file_with_format(
+            key_file,
+            input_path,
+            output_path,
+            args.force,
+            output_format=args.output_format,
+        )
 
     return fail(f"Unknown command: {args.command}")
 

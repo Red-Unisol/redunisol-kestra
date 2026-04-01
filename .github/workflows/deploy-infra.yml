@@ -82,6 +82,7 @@ jobs:
             --key-file "$RUNNER_TEMP/kestra-runtime.key" \
             --input kestra/platform/infra/kestra-runtime.env.enc \
             --output kestra/platform/infra/kestra-runtime.env \
+            --output-format runtime \
             --force
 
       - name: Upload staged infra files
