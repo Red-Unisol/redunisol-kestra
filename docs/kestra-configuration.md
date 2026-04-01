@@ -173,10 +173,11 @@ Subcomandos disponibles:
 
 Comportamiento actual del tooling:
 
-- al descifrar, las claves `SECRET_*` se escriben en plaintext real para que se puedan revisar y editar como humano
+- al descifrar en modo `human`, las claves `SECRET_*` se escriben en plaintext real para que se puedan revisar y editar como humano
+- al descifrar en modo `runtime`, las claves `SECRET_*` se escriben en el formato esperado por Kestra runtime, o sea Base64-ready dentro del `.env`
 - al cifrar, las claves `SECRET_*` se convierten automaticamente a Base64 antes de encriptarse
 - el archivo descifrado agrega arriba el comentario `NO USAR BASE 64 PARA LOS SECRETOS EL TOOLING LO MANEJA POR SI MISMO`
-- ese comentario es solo para el archivo plaintext local; el tooling lo remueve antes de generar el archivo cifrado
+- ese comentario es solo para el archivo plaintext local en modo `human`; el tooling lo remueve antes de generar el archivo cifrado
 - el decrypt sigue soportando el formato legacy cifrado como blob completo, para migracion gradual
 
 Flujo sugerido:
@@ -197,6 +198,7 @@ Ejemplos de uso:
 ```bash
 python kestra/tools/manage_encrypted_env.py generate-key --output .local-secrets/runtime-env.key
 python kestra/tools/manage_encrypted_env.py decrypt --key-file .local-secrets/runtime-env.key --input kestra/platform/infra/kestra-runtime.env.enc --output kestra/platform/infra/kestra-runtime.env --force
+python kestra/tools/manage_encrypted_env.py decrypt --key-file .local-secrets/runtime-env.key --input kestra/platform/infra/kestra-runtime.env.enc --output kestra/platform/infra/kestra-runtime.runtime.env --output-format runtime --force
 python kestra/tools/manage_encrypted_env.py encrypt --key-file .local-secrets/runtime-env.key --input kestra/platform/infra/kestra-runtime.env --output kestra/platform/infra/kestra-runtime.env.enc --force
 ```
 
@@ -207,6 +209,8 @@ Importante:
 - el archivo cifrado si puede versionarse
 - si se pierde la key, el archivo cifrado no se puede recuperar
 - los `SECRET_*` deben editarse en plaintext real, no en Base64
+- las tasks locales de VS Code deben seguir usando el modo `human`
+- los deploys automatizados de infraestructura deben usar el modo `runtime`
 
 ## Tasks De VS Code
 

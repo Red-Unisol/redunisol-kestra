@@ -158,6 +158,31 @@ class ManageEncryptedEnvTests(unittest.TestCase):
             ),
         )
 
+    def test_decrypt_runtime_output_reencodes_secret_values(self) -> None:
+        plaintext = b"ENV_ALPHA=value-a\nSECRET_BETA=super-secret\n"
+        encrypted_path = self.root / "runtime.env.enc"
+        decrypted_path = self.root / "runtime.env"
+        encrypted_path.write_bytes(
+            manage_encrypted_env.encrypt_env_lines(
+                manage_encrypted_env.load_aessiv(self.key_file),
+                plaintext,
+            )
+        )
+
+        result = manage_encrypted_env.decrypt_file_with_format(
+            self.key_file,
+            encrypted_path,
+            decrypted_path,
+            force=True,
+            output_format="runtime",
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            decrypted_path.read_bytes(),
+            b"ENV_ALPHA=value-a\nSECRET_BETA=c3VwZXItc2VjcmV0\n",
+        )
+
     def test_legacy_blob_is_not_misdetected_as_line_encrypted_env(self) -> None:
         plaintext = b"ENV_ALPHA=value-a\n"
         legacy_blob = Fernet(self.key_file.read_bytes().strip()).encrypt(plaintext) + b"\n"
