@@ -125,6 +125,7 @@ Comportamiento esperado al crear el lead:
 
 - el intake crea el lead con la politica `No procesar`
 - el flow de clasificacion por `lead_id` puede saltarse el procesamiento si no se lo fuerza y la politica sigue distinta de `Procesar`
+- si otro origen crea el lead sin completar `Politica procesamiento`, el valor vacio tambien se interpreta como `No procesar`
 
 ## Integracion con Kestra
 

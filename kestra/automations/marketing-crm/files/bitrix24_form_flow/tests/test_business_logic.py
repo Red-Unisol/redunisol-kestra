@@ -271,6 +271,38 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(result["reason"], "processing_disabled")
         self.assertEqual(result["lead_status"], "NEW")
 
+    def test_classify_lead_skips_when_processing_policy_is_empty(self) -> None:
+        client = FakeBitrixClient()
+        client.leads[303] = {
+            "ID": "303",
+            "CONTACT_ID": "101",
+            "STATUS_ID": "NEW",
+            "TITLE": "Luis Diaz",
+            "NAME": "Luis",
+            "LAST_NAME": "Diaz",
+            "EMAIL": [{"VALUE": "luis@example.com", "VALUE_TYPE": "WORK"}],
+            "PHONE": [{"VALUE": "+5493511234567", "VALUE_TYPE": "WORK"}],
+            "UF_CRM_PROCESSING_POLICY": "",
+            "UF_CRM_1693840106704": "20876543219",
+            "UF_CRM_1714071903": "2565",
+            "UF_CRM_LEAD_1711458190312": ["449"],
+            "UF_CRM_64E65D2B2136C": "209",
+            "UF_CRM_1722365051": "2425",
+        }
+
+        result = classify_lead(
+            303,
+            env=self.env,
+            bitrix_client=client,
+            logger=SilentLogger(),
+            force_processing=False,
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["action"], "skipped")
+        self.assertEqual(result["reason"], "processing_disabled")
+        self.assertEqual(result["lead_status"], "NEW")
+
 
 if __name__ == "__main__":
     unittest.main()
