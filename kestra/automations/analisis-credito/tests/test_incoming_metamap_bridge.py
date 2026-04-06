@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+import sys
 import unittest
 
 import requests
+
+FILES_ROOT = Path(__file__).resolve().parent.parent / "files"
+if str(FILES_ROOT) not in sys.path:
+    sys.path.insert(0, str(FILES_ROOT))
 
 from incoming_metamap_bridge.kestra_webhook_entrypoint import process_payload
 
