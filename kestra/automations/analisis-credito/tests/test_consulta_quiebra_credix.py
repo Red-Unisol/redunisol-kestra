@@ -15,6 +15,7 @@ from consulta_quiebra_credix.service import (  # noqa: E402
     build_error_result,
     build_output_payload,
     build_single_result,
+    _is_detail_summary_page,
     normalize_cuit,
     normalize_name,
     parse_search_request,
@@ -90,6 +91,20 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
     def test_normalizers_strip_noise(self) -> None:
         self.assertEqual(normalize_cuit("20-12345678-3"), "20123456783")
         self.assertEqual(normalize_name("  Maria   del  Mar "), "Maria del Mar")
+
+    def test_is_detail_summary_page_detects_credix_detail_view(self) -> None:
+        class BodyLocator:
+            def inner_text(self, timeout=None):
+                return "Resumen (*)\nDatos Filiatorios\nDatos Fiscales"
+
+        class StubPage:
+            url = "https://www.credixsa.com/nuevo/con_cuit3.php"
+
+            def locator(self, selector):
+                self.last_selector = selector
+                return BodyLocator()
+
+        self.assertTrue(_is_detail_summary_page(StubPage()))
 
 
 if __name__ == "__main__":

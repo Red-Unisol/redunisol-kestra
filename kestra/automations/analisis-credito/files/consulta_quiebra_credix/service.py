@@ -119,7 +119,13 @@ def consultar_tabla(request: SearchRequest, config: CredixConfig) -> dict[str, A
             selected_candidate.link.click()
             page.wait_for_load_state("networkidle")
             _wait_next_ui_step(page, request)
-            data = _extract_edicts(page, config, request)
+            try:
+                data = _extract_edicts(page, config, request)
+            except TimeoutError:
+                if _is_detail_summary_page(page):
+                    data = []
+                else:
+                    raise
             return build_single_result(request, data, nombre=selected_candidate.nombre)
         finally:
             browser.close()
@@ -297,6 +303,15 @@ def _extract_edicts(
         )
 
     return data
+
+
+def _is_detail_summary_page(page: "Page") -> bool:
+    body_text = page.locator("body").inner_text(timeout=5000)
+    if "Datos Filiatorios" in body_text:
+        return True
+    if "Resumen (*)" in body_text:
+        return True
+    return "con_cuit3.php" in page.url
 
 
 def _base_result(
