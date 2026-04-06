@@ -13,3 +13,7 @@ Route::post('/api/tools/consulta-renovacion-cruz-del-eje', [HerramientasControll
 Route::post('/api/tools/consulta-tope-descuento-caja', [HerramientasController::class, 'consultaTopeDescuentoCaja'])
     ->withoutMiddleware([PreventRequestForgery::class])
     ->name('tools.consulta-tope-descuento-caja');
+
+Route::post('/api/tools/consulta-quiebra-credix', [HerramientasController::class, 'consultaQuiebraCredix'])
+    ->withoutMiddleware([PreventRequestForgery::class])
+    ->name('tools.consulta-quiebra-credix');

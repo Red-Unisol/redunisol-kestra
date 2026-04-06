@@ -31,10 +31,21 @@ return [
             'actionLabel' => 'Consultar caja',
             'helper' => 'La consulta usa el webhook protegido de Kestra desde el backend Laravel.',
         ],
+        [
+            'id' => 'consulta-quiebra-credix',
+            'title' => 'Consulta Quiebra Credix',
+            'description' => 'Consulta CredixSA por CUIT y/o nombre para obtener coincidencias o edictos judiciales.',
+            'category' => 'Analisis de credito',
+            'status' => 'active',
+            'icon' => 'credit-path',
+            'actionLabel' => 'Consultar quiebra',
+            'helper' => 'La consulta usa el webhook protegido de Kestra desde el backend Laravel.',
+        ],
     ],
     'proxy' => [
         'consulta_renovacion_url' => env('ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL'),
         'tope_descuento_caja_url' => env('ANALISIS_CREDITO_CONSULTA_CAJA'),
+        'consulta_quiebra_credix_url' => env('ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL'),
         'timeout_seconds' => (int) env('ANALISIS_CREDITO_TIMEOUT_SECONDS', 30),
     ],
 ];

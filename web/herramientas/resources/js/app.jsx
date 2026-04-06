@@ -42,7 +42,11 @@ const placeholderTool = {
 
 function App({ branding, tools }) {
     const [selectedToolId, setSelectedToolId] = React.useState(null);
-    const [cuil, setCuil] = React.useState('');
+    const [formValues, setFormValues] = React.useState({
+        cuil: '',
+        cuit: '',
+        nombre: '',
+    });
     const [loading, setLoading] = React.useState(false);
     const [result, setResult] = React.useState(null);
     const [error, setError] = React.useState('');
@@ -67,7 +71,11 @@ function App({ branding, tools }) {
     };
 
     const clearToolState = () => {
-        setCuil('');
+        setFormValues({
+            cuil: '',
+            cuit: '',
+            nombre: '',
+        });
         setError('');
         setResult(null);
     };
@@ -85,19 +93,20 @@ function App({ branding, tools }) {
         setResult(null);
 
         try {
+            const requestBody = buildRequestBody(selectedTool?.id, formValues);
             const response = await fetch(selectedTool.endpoint, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ cuil }),
+                body: JSON.stringify(requestBody),
             });
 
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(payload.message ?? 'La consulta no pudo completarse.');
+                throw new Error(extractErrorMessage(payload));
             }
 
             setResult(payload);
@@ -182,17 +191,60 @@ function App({ branding, tools }) {
                     </div>
 
                     <form className="workspace__form" onSubmit={handleSubmit}>
-                        <div className="field">
-                            <label htmlFor="cuil">CUIL</label>
-                            <input
-                                id="cuil"
-                                name="cuil"
-                                placeholder="20-12345678-3"
-                                value={cuil}
-                                onChange={(event) => setCuil(event.target.value)}
-                                autoComplete="off"
-                            />
-                        </div>
+                        {selectedTool?.id === 'consulta-quiebra-credix' ? (
+                            <div className="form-grid">
+                                <div className="field">
+                                    <label htmlFor="cuit">CUIT</label>
+                                    <input
+                                        id="cuit"
+                                        name="cuit"
+                                        placeholder="20-12345678-3"
+                                        value={formValues.cuit}
+                                        onChange={(event) =>
+                                            setFormValues((current) => ({
+                                                ...current,
+                                                cuit: event.target.value,
+                                            }))
+                                        }
+                                        autoComplete="off"
+                                    />
+                                </div>
+
+                                <div className="field">
+                                    <label htmlFor="nombre">Nombre</label>
+                                    <input
+                                        id="nombre"
+                                        name="nombre"
+                                        placeholder="Apellido y nombre"
+                                        value={formValues.nombre}
+                                        onChange={(event) =>
+                                            setFormValues((current) => ({
+                                                ...current,
+                                                nombre: event.target.value,
+                                            }))
+                                        }
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="field">
+                                <label htmlFor="cuil">CUIL</label>
+                                <input
+                                    id="cuil"
+                                    name="cuil"
+                                    placeholder="20-12345678-3"
+                                    value={formValues.cuil}
+                                    onChange={(event) =>
+                                        setFormValues((current) => ({
+                                            ...current,
+                                            cuil: event.target.value,
+                                        }))
+                                    }
+                                    autoComplete="off"
+                                />
+                            </div>
+                        )}
 
                         <div className="actions">
                             <button className="button button--primary" disabled={loading} type="submit">
@@ -268,6 +320,78 @@ function App({ branding, tools }) {
                                             </div>
                                         </>
                                     )}
+
+                                    {selectedTool?.id === 'consulta-quiebra-credix' && (
+                                        <>
+                                            <div className="result__metric">
+                                                <span>Estado</span>
+                                                <strong>{humanizeReason(result.status || 'sin_dato')}</strong>
+                                            </div>
+                                            <div className="result__metric">
+                                                <span>CUIT</span>
+                                                <strong>{result.cuit || 'Sin dato'}</strong>
+                                            </div>
+                                            <div className="result__metric">
+                                                <span>Nombre</span>
+                                                <strong>{result.nombre || 'Sin dato'}</strong>
+                                            </div>
+                                            <div className="result__metric">
+                                                <span>Registros</span>
+                                                <strong>{getQuiebraRecordCount(result)}</strong>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {selectedTool?.id === 'consulta-quiebra-credix' && result && (
+                                <div className="result__detail">
+                                    {result.status === 'multiple' && (
+                                        <div className="result__stack">
+                                            <h4 className="result__subheading">Coincidencias encontradas</h4>
+                                            <div className="result__list">
+                                                {parseJsonArray(result.rows_json).map((row, index) => (
+                                                    <article className="result__listItem" key={`${row.cuit || 'row'}-${index}`}>
+                                                        <strong>{row.nombre || 'Sin nombre'}</strong>
+                                                        <span>CUIT: {row.cuit || 'Sin dato'}</span>
+                                                        <span>Documento: {row.documento || 'Sin dato'}</span>
+                                                    </article>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {result.status === 'single' && (
+                                        <div className="result__stack">
+                                            <h4 className="result__subheading">Edictos judiciales</h4>
+                                            {parseJsonArray(result.data_json).length > 0 ? (
+                                                <div className="result__tableWrap">
+                                                    <table className="result__table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Fecha</th>
+                                                                <th>Fuente</th>
+                                                                <th>ID</th>
+                                                                <th>Resumen</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {parseJsonArray(result.data_json).map((item, index) => (
+                                                                <tr key={`${item.id || 'edict'}-${index}`}>
+                                                                    <td>{item.fecha || 'Sin dato'}</td>
+                                                                    <td>{item.fuente || 'Sin dato'}</td>
+                                                                    <td>{item.id || 'Sin dato'}</td>
+                                                                    <td>{item.resumen || 'Sin dato'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ) : (
+                                                <p className="result__empty">No hay filas en la tabla de edictos.</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </section>
@@ -294,6 +418,16 @@ function getResultTone(toolId, result, error) {
         return 'success';
     }
 
+    if (toolId === 'consulta-quiebra-credix') {
+        if (result?.status === 'single') {
+            return 'success';
+        }
+        if (result?.status === 'multiple') {
+            return 'warning';
+        }
+        return 'warning';
+    }
+
     return 'warning';
 }
 
@@ -318,6 +452,19 @@ function getResultHeadline(toolId, result, error) {
 
     if (toolId === 'consulta-tope-descuento-caja') {
         return result.ok ? 'Consulta completada' : 'Respuesta de validacion';
+    }
+
+    if (toolId === 'consulta-quiebra-credix') {
+        if (result.status === 'single') {
+            return 'Resultado unico encontrado';
+        }
+        if (result.status === 'multiple') {
+            return 'Se encontraron multiples coincidencias';
+        }
+        if (result.status === 'none') {
+            return 'Sin coincidencias';
+        }
+        return 'Respuesta de validacion';
     }
 
     return 'Respuesta de validacion';
@@ -349,7 +496,81 @@ function getResultCopy(toolId, result, error) {
         return result.message || result.error || 'La consulta devolvio una respuesta no esperada.';
     }
 
+    if (toolId === 'consulta-quiebra-credix') {
+        if (result.status === 'single') {
+            const total = parseJsonArray(result.data_json).length;
+            return total > 0
+                ? `Se obtuvo un resultado unico con ${total} fila${total === 1 ? '' : 's'} de edictos.`
+                : 'Se obtuvo un resultado unico sin filas en la tabla de edictos.';
+        }
+        if (result.status === 'multiple') {
+            const total = parseJsonArray(result.rows_json).length;
+            return `Se encontraron ${total} coincidencia${total === 1 ? '' : 's'} y hace falta elegir una manualmente.`;
+        }
+        if (result.status === 'none') {
+            return 'No se encontraron coincidencias para los criterios ingresados.';
+        }
+        return result.message || result.error || 'La consulta devolvio una respuesta no esperada.';
+    }
+
     return result.message || result.error || 'La consulta devolvio una respuesta no esperada.';
+}
+
+function buildRequestBody(toolId, formValues) {
+    if (toolId === 'consulta-quiebra-credix') {
+        return {
+            cuit: formValues.cuit,
+            nombre: formValues.nombre,
+        };
+    }
+
+    return {
+        cuil: formValues.cuil,
+    };
+}
+
+function extractErrorMessage(payload) {
+    if (payload?.message) {
+        return payload.message;
+    }
+
+    if (payload?.errors && typeof payload.errors === 'object') {
+        const firstGroup = Object.values(payload.errors).find((value) => Array.isArray(value) && value.length > 0);
+        if (firstGroup) {
+            return firstGroup[0];
+        }
+    }
+
+    return 'La consulta no pudo completarse.';
+}
+
+function parseJsonArray(rawValue) {
+    if (!rawValue || typeof rawValue !== 'string') {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(rawValue);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function getQuiebraRecordCount(result) {
+    if (!result) {
+        return '0';
+    }
+
+    if (result.status === 'multiple') {
+        return String(parseJsonArray(result.rows_json).length);
+    }
+
+    if (result.status === 'single') {
+        return String(parseJsonArray(result.data_json).length);
+    }
+
+    return '0';
 }
 
 function humanizeReason(value) {
