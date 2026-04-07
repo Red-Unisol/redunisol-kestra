@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from threading import Lock
 from typing import Optional
@@ -9,6 +9,21 @@ from typing import Optional
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _utc_now_dt() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+METAMAP_WEBHOOK_RECEIPT_RETENTION = timedelta(days=7)
+QUEUE_DELIVERY_TIMEOUT = timedelta(hours=24)
 
 
 def build_case_payload(*, resource_url: str | None) -> dict:
@@ -50,6 +65,7 @@ class WorkflowStage(str, Enum):
 class DeliveryStatus(str, Enum):
     PENDING = "pending"
     COMPLETED = "completed"
+    ABANDONED = "abandoned"
 
 
 class CaseAction(str, Enum):
@@ -147,6 +163,7 @@ class InMemoryWorkflowStore:
 
     def list_cases_for_role(self, role: ClientRole) -> list[CaseRecord]:
         with self._lock:
+            self._expire_pending_deliveries_locked()
             cases = [
                 case
                 for case in self._cases.values()
@@ -159,6 +176,7 @@ class InMemoryWorkflowStore:
 
     def get_case(self, case_id: str) -> CaseRecord:
         with self._lock:
+            self._expire_pending_deliveries_locked()
             case = self._cases.get(case_id)
             if not case:
                 raise WorkflowError(f"Case {case_id} inexistente.")
@@ -180,6 +198,7 @@ class InMemoryWorkflowStore:
         if event_name.lower() == "verification_completed" and not resource_url:
             raise WorkflowError("resource_url es obligatorio para verification_completed.")
         with self._lock:
+            self._expire_pending_deliveries_locked()
             case = self._cases.get(verification_id)
             if not case:
                 case = CaseRecord(
@@ -196,11 +215,7 @@ class InMemoryWorkflowStore:
             case.user_id = user_id or case.user_id
             case.updated_at = _utc_now()
             if event_name.lower() == "verification_completed":
-                if case.current_stage == WorkflowStage.RECEIVED_FROM_METAMAP:
-                    case.current_stage = WorkflowStage.PENDING_VALIDADOR_REVIEW
-                    case.ensure_pending_delivery(ClientRole.VALIDADOR)
-                elif case.current_stage == WorkflowStage.PENDING_VALIDADOR_REVIEW:
-                    case.ensure_pending_delivery(ClientRole.VALIDADOR)
+                self._auto_validate_case_locked(case)
             case.add_audit(
                 "metamap_event_received",
                 actor="metamap",
@@ -224,6 +239,7 @@ class InMemoryWorkflowStore:
         processing_error: str | None = None,
     ) -> None:
         with self._lock:
+            self._prune_old_metamap_webhook_receipts_locked()
             self._metamap_webhook_receipts.append(
                 {
                     "received_at": _utc_now(),
@@ -239,6 +255,12 @@ class InMemoryWorkflowStore:
                 }
             )
 
+    def list_metamap_webhook_receipts(self, limit: int = 50) -> list[dict]:
+        with self._lock:
+            self._prune_old_metamap_webhook_receipts_locked()
+            limited_receipts = self._metamap_webhook_receipts[-limit:]
+            return list(reversed([dict(receipt) for receipt in limited_receipts]))
+
     def apply_case_action(
         self,
         *,
@@ -250,6 +272,7 @@ class InMemoryWorkflowStore:
         external_transfer_id: Optional[str] = None,
     ) -> CaseRecord:
         with self._lock:
+            self._expire_pending_deliveries_locked()
             case = self._cases.get(case_id)
             if not case:
                 raise WorkflowError(f"Case {case_id} inexistente.")
@@ -291,6 +314,7 @@ class InMemoryWorkflowStore:
     def register_bank_callback(self, callback_type: str, payload: dict) -> tuple[CaseRecord, bool]:
         dedupe_key = self._build_callback_dedupe_key(callback_type, payload)
         with self._lock:
+            self._expire_pending_deliveries_locked()
             if dedupe_key in self._callback_dedupe:
                 case = self._find_case_for_callback(payload)
                 case.add_audit(
@@ -350,3 +374,54 @@ class InMemoryWorkflowStore:
                     return case
 
         raise WorkflowError("No se pudo correlacionar el callback bancario con ningun case.")
+
+    def _auto_validate_case_locked(self, case: CaseRecord) -> None:
+        previous_stage = case.current_stage
+        if previous_stage == WorkflowStage.PENDING_VALIDADOR_REVIEW:
+            validador_delivery = case.delivery_for_role(ClientRole.VALIDADOR)
+            if validador_delivery and validador_delivery.status == DeliveryStatus.PENDING:
+                validador_delivery.status = DeliveryStatus.COMPLETED
+                validador_delivery.updated_at = _utc_now()
+
+        if previous_stage in {
+            WorkflowStage.RECEIVED_FROM_METAMAP,
+            WorkflowStage.PENDING_VALIDADOR_REVIEW,
+            WorkflowStage.APPROVED_BY_VALIDADOR,
+        }:
+            case.current_stage = WorkflowStage.APPROVED_BY_VALIDADOR
+            case.ensure_pending_delivery(ClientRole.TRANSFERENCIAS_CELESOL)
+            if previous_stage != WorkflowStage.APPROVED_BY_VALIDADOR:
+                case.add_audit(
+                    "metamap_auto_validated",
+                    actor="server",
+                    actor_role=None,
+                    previous_stage=previous_stage.value,
+                    target_role=ClientRole.TRANSFERENCIAS_CELESOL.value,
+                )
+
+    def _expire_pending_deliveries_locked(self) -> None:
+        expiration_threshold = _utc_now_dt() - QUEUE_DELIVERY_TIMEOUT
+        for case in self._cases.values():
+            for delivery in case.deliveries:
+                if delivery.status != DeliveryStatus.PENDING:
+                    continue
+                if _parse_timestamp(delivery.updated_at) >= expiration_threshold:
+                    continue
+                delivery.status = DeliveryStatus.ABANDONED
+                delivery.updated_at = _utc_now()
+                case.current_stage = WorkflowStage.MANUAL_INTERVENTION_REQUIRED
+                case.add_audit(
+                    "queue_delivery_abandoned",
+                    actor="server",
+                    actor_role=None,
+                    role=delivery.role.value,
+                    timeout_hours=int(QUEUE_DELIVERY_TIMEOUT.total_seconds() // 3600),
+                )
+
+    def _prune_old_metamap_webhook_receipts_locked(self) -> None:
+        retention_threshold = _utc_now_dt() - METAMAP_WEBHOOK_RECEIPT_RETENTION
+        self._metamap_webhook_receipts = [
+            receipt
+            for receipt in self._metamap_webhook_receipts
+            if _parse_timestamp(receipt["received_at"]) >= retention_threshold
+        ]

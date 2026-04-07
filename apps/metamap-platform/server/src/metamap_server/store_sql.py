@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, select
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, delete, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -24,6 +24,8 @@ from .workflow import (
     ClientRole,
     DeliveryRecord,
     DeliveryStatus,
+    METAMAP_WEBHOOK_RECEIPT_RETENTION,
+    QUEUE_DELIVERY_TIMEOUT,
     WorkflowError,
     WorkflowStage,
     build_case_payload,
@@ -181,6 +183,8 @@ class SqlWorkflowStore:
 
     def list_cases_for_role(self, role: ClientRole) -> list[CaseRecord]:
         with self._session_factory() as session:
+            if self._run_housekeeping(session):
+                session.commit()
             stmt = (
                 select(CaseRow)
                 .join(DeliveryRow)
@@ -195,6 +199,8 @@ class SqlWorkflowStore:
 
     def get_case(self, case_id: str) -> CaseRecord:
         with self._session_factory() as session:
+            if self._run_housekeeping(session):
+                session.commit()
             row = session.get(CaseRow, case_id)
             if row is None:
                 raise WorkflowError(f"Case {case_id} inexistente.")
@@ -217,6 +223,7 @@ class SqlWorkflowStore:
             raise WorkflowError("resource_url es obligatorio para verification_completed.")
 
         with self._session_factory() as session:
+            self._run_housekeeping(session)
             row = session.get(CaseRow, verification_id)
             if row is None:
                 row = CaseRow(
@@ -234,12 +241,7 @@ class SqlWorkflowStore:
             row.user_id = user_id or row.user_id
             row.updated_at = _utc_now()
             if event_name.lower() == "verification_completed":
-                current_stage = WorkflowStage(row.current_stage)
-                if current_stage == WorkflowStage.RECEIVED_FROM_METAMAP:
-                    row.current_stage = WorkflowStage.PENDING_VALIDADOR_REVIEW.value
-                    self._ensure_delivery(row, ClientRole.VALIDADOR, DeliveryStatus.PENDING)
-                elif current_stage == WorkflowStage.PENDING_VALIDADOR_REVIEW:
-                    self._ensure_delivery(row, ClientRole.VALIDADOR, DeliveryStatus.PENDING)
+                self._auto_validate_case(row)
             self._append_audit(
                 row,
                 action="metamap_event_received",
@@ -265,6 +267,7 @@ class SqlWorkflowStore:
         processing_error: str | None = None,
     ) -> None:
         with self._session_factory() as session:
+            self._run_housekeeping(session)
             session.add(
                 MetamapWebhookReceiptRow(
                     event_name=event_name,
@@ -280,6 +283,18 @@ class SqlWorkflowStore:
             )
             session.commit()
 
+    def list_metamap_webhook_receipts(self, limit: int = 50) -> list[dict]:
+        with self._session_factory() as session:
+            if self._run_housekeeping(session):
+                session.commit()
+            stmt = (
+                select(MetamapWebhookReceiptRow)
+                .order_by(MetamapWebhookReceiptRow.id.desc())
+                .limit(limit)
+            )
+            rows = session.execute(stmt).scalars().all()
+            return [self._serialize_metamap_webhook_receipt(row) for row in rows]
+
     def apply_case_action(
         self,
         *,
@@ -291,6 +306,7 @@ class SqlWorkflowStore:
         external_transfer_id: Optional[str] = None,
     ) -> CaseRecord:
         with self._session_factory() as session:
+            self._run_housekeeping(session)
             row = session.get(CaseRow, case_id)
             if row is None:
                 raise WorkflowError(f"Case {case_id} inexistente.")
@@ -344,6 +360,7 @@ class SqlWorkflowStore:
     def register_bank_callback(self, callback_type: str, payload: dict) -> tuple[CaseRecord, bool]:
         dedupe_key = self._build_callback_dedupe_key(callback_type, payload)
         with self._session_factory() as session:
+            self._run_housekeeping(session)
             receipt = session.get(CallbackReceiptRow, dedupe_key)
             if receipt is not None:
                 row = session.get(CaseRow, receipt.case_id)
@@ -444,6 +461,35 @@ class SqlWorkflowStore:
             )
         )
 
+    def _auto_validate_case(self, case_row: CaseRow) -> None:
+        previous_stage = WorkflowStage(case_row.current_stage)
+        if previous_stage == WorkflowStage.PENDING_VALIDADOR_REVIEW:
+            validador_delivery = self._delivery_for_role(case_row, ClientRole.VALIDADOR)
+            if validador_delivery and validador_delivery.status == DeliveryStatus.PENDING.value:
+                validador_delivery.status = DeliveryStatus.COMPLETED.value
+                validador_delivery.updated_at = _utc_now()
+
+        if previous_stage in {
+            WorkflowStage.RECEIVED_FROM_METAMAP,
+            WorkflowStage.PENDING_VALIDADOR_REVIEW,
+            WorkflowStage.APPROVED_BY_VALIDADOR,
+        }:
+            case_row.current_stage = WorkflowStage.APPROVED_BY_VALIDADOR.value
+            self._ensure_delivery(
+                case_row,
+                ClientRole.TRANSFERENCIAS_CELESOL,
+                DeliveryStatus.PENDING,
+            )
+            if previous_stage != WorkflowStage.APPROVED_BY_VALIDADOR:
+                self._append_audit(
+                    case_row,
+                    action="metamap_auto_validated",
+                    actor="server",
+                    actor_role=None,
+                    previous_stage=previous_stage.value,
+                    target_role=ClientRole.TRANSFERENCIAS_CELESOL.value,
+                )
+
     def _build_callback_dedupe_key(self, callback_type: str, payload: dict) -> str:
         callback_id = (
             payload.get("IdAviso")
@@ -474,6 +520,63 @@ class SqlWorkflowStore:
                 return row
 
         raise WorkflowError("No se pudo correlacionar el callback bancario con ningun case.")
+
+    def _run_housekeeping(self, session: Session) -> bool:
+        receipts_pruned = self._prune_old_metamap_webhook_receipts(session)
+        deliveries_expired = self._expire_pending_deliveries(session)
+        return receipts_pruned or deliveries_expired
+
+    def _prune_old_metamap_webhook_receipts(self, session: Session) -> bool:
+        retention_threshold = (
+            datetime.now(timezone.utc) - METAMAP_WEBHOOK_RECEIPT_RETENTION
+        ).isoformat()
+        result = session.execute(
+            delete(MetamapWebhookReceiptRow).where(
+                MetamapWebhookReceiptRow.received_at < retention_threshold
+            )
+        )
+        return bool(result.rowcount and result.rowcount > 0)
+
+    def _expire_pending_deliveries(self, session: Session) -> bool:
+        expiration_threshold = (
+            datetime.now(timezone.utc) - QUEUE_DELIVERY_TIMEOUT
+        ).isoformat()
+        stmt = select(DeliveryRow).where(
+            DeliveryRow.status == DeliveryStatus.PENDING.value,
+            DeliveryRow.updated_at < expiration_threshold,
+        )
+        rows = session.execute(stmt).scalars().all()
+        if not rows:
+            return False
+        for delivery in rows:
+            delivery.status = DeliveryStatus.ABANDONED.value
+            delivery.updated_at = _utc_now()
+            delivery.case.current_stage = WorkflowStage.MANUAL_INTERVENTION_REQUIRED.value
+            delivery.case.updated_at = _utc_now()
+            self._append_audit(
+                delivery.case,
+                action="queue_delivery_abandoned",
+                actor="server",
+                actor_role=None,
+                role=delivery.role,
+                timeout_hours=int(QUEUE_DELIVERY_TIMEOUT.total_seconds() // 3600),
+            )
+        return True
+
+    def _serialize_metamap_webhook_receipt(self, row: MetamapWebhookReceiptRow) -> dict:
+        return {
+            "id": row.id,
+            "received_at": row.received_at,
+            "event_name": row.event_name,
+            "verification_id": row.verification_id,
+            "resource_url": row.resource_url,
+            "signature_valid": row.signature_valid,
+            "processing_status": row.processing_status,
+            "processing_error": row.processing_error,
+            "raw_body": row.raw_body,
+            "headers": row.headers or {},
+            "payload": row.payload,
+        }
 
     def _to_case_record(self, row: CaseRow) -> CaseRecord:
         deliveries = [

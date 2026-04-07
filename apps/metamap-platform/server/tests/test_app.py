@@ -3,6 +3,7 @@ import hmac
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from metamap_server import __version__
 from metamap_server.api import create_app
 from metamap_server.config import AppSettings, BootstrapClient
-from metamap_server.store_sql import MetamapWebhookReceiptRow
+from metamap_server.store_sql import DeliveryRow, MetamapWebhookReceiptRow
 from metamap_server.workflow import ClientRole
 
 
@@ -57,7 +58,7 @@ class MetaMapServerApiTests(unittest.TestCase):
             },
         )
 
-    def test_validador_then_transferencias_celesol_flow(self) -> None:
+    def test_metamap_completion_goes_directly_to_transferencias_flow(self) -> None:
         ingest = self._post_metamap_webhook(
             self._metamap_payload(
                 event_name="verification_completed",
@@ -69,7 +70,7 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(ingest.json()["processing_status"], "enqueued")
         self.assertEqual(
             ingest.json()["case"]["current_stage"],
-            "pending_validador_review",
+            "approved_by_validador",
         )
         self.assertEqual(
             ingest.json()["case"]["resource_url"],
@@ -81,34 +82,7 @@ class MetaMapServerApiTests(unittest.TestCase):
             headers=self._client_headers(ClientRole.VALIDADOR),
         )
         self.assertEqual(queue_validador.status_code, 200)
-        self.assertEqual(len(queue_validador.json()["cases"]), 1)
-        self.assertEqual(
-            queue_validador.json()["cases"][0]["pending_roles"],
-            ["validador"],
-        )
-        self.assertEqual(
-            queue_validador.json()["cases"][0]["queue_payload"],
-            {
-                "verification_id": "verif-100",
-                "resource_url": "https://api.getmati.com/v2/verifications/verif-100",
-            },
-        )
-
-        approve = self.client.post(
-            "/api/v1/cases/verif-100/actions",
-            headers=self._client_headers(ClientRole.VALIDADOR),
-            json={
-                "role": "validador",
-                "action": "approved",
-                "actor": "operador_b",
-                "notes": "Aprobado para transferencias.",
-            },
-        )
-        self.assertEqual(approve.status_code, 200)
-        self.assertEqual(
-            approve.json()["case"]["current_stage"],
-            "approved_by_validador",
-        )
+        self.assertEqual(queue_validador.json()["cases"], [])
 
         queue_transferencias = self.client.get(
             "/api/v1/queues/transferencias_celesol",
@@ -119,6 +93,13 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(
             queue_transferencias.json()["cases"][0]["pending_roles"],
             ["transferencias_celesol"],
+        )
+        self.assertEqual(
+            queue_transferencias.json()["cases"][0]["queue_payload"],
+            {
+                "verification_id": "verif-100",
+                "resource_url": "https://api.getmati.com/v2/verifications/verif-100",
+            },
         )
 
         transfer = self.client.post(
@@ -164,14 +145,14 @@ class MetaMapServerApiTests(unittest.TestCase):
 
         restarted_client = TestClient(create_app(settings=self.settings))
         try:
-            queue_validador = restarted_client.get(
-                "/api/v1/queues/validador",
-                headers=self._client_headers(ClientRole.VALIDADOR),
+            queue_transferencias = restarted_client.get(
+                "/api/v1/queues/transferencias_celesol",
+                headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
             )
-            self.assertEqual(queue_validador.status_code, 200)
-            self.assertEqual(len(queue_validador.json()["cases"]), 1)
+            self.assertEqual(queue_transferencias.status_code, 200)
+            self.assertEqual(len(queue_transferencias.json()["cases"]), 1)
             self.assertEqual(
-                queue_validador.json()["cases"][0]["verification_id"],
+                queue_transferencias.json()["cases"][0]["verification_id"],
                 "verif-persist",
             )
         finally:
@@ -194,12 +175,12 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(response.json()["processing_status"], "ignored")
         self.assertIsNone(response.json()["case"])
 
-        queue_validador = self.client.get(
-            "/api/v1/queues/validador",
-            headers=self._client_headers(ClientRole.VALIDADOR),
+        queue_transferencias = self.client.get(
+            "/api/v1/queues/transferencias_celesol",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
         )
-        self.assertEqual(queue_validador.status_code, 200)
-        self.assertEqual(queue_validador.json()["cases"], [])
+        self.assertEqual(queue_transferencias.status_code, 200)
+        self.assertEqual(queue_transferencias.json()["cases"], [])
 
         receipts = self._webhook_receipts()
         self.assertEqual(len(receipts), 1)
@@ -207,7 +188,7 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(receipts[0].event_name, "step_completed")
         self.assertEqual(receipts[0].verification_id, "verif-step")
 
-    def test_validador_rejects_case_and_transfer_queue_stays_empty(self) -> None:
+    def test_validador_cannot_act_on_auto_validated_case(self) -> None:
         self._post_metamap_webhook(
             self._metamap_payload(
                 event_name="verification_completed",
@@ -225,18 +206,15 @@ class MetaMapServerApiTests(unittest.TestCase):
                 "notes": "No cumple criterios.",
             },
         )
-        self.assertEqual(reject.status_code, 200)
-        self.assertEqual(
-            reject.json()["case"]["current_stage"],
-            "rejected_by_validador",
-        )
+        self.assertEqual(reject.status_code, 409)
+        self.assertIn("no esta esperando revision", reject.json()["detail"])
 
         queue_transferencias = self.client.get(
             "/api/v1/queues/transferencias_celesol",
             headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
         )
         self.assertEqual(queue_transferencias.status_code, 200)
-        self.assertEqual(queue_transferencias.json()["cases"], [])
+        self.assertEqual(len(queue_transferencias.json()["cases"]), 1)
 
     def test_duplicate_bank_callback_is_idempotent(self) -> None:
         self._post_metamap_webhook(
@@ -244,15 +222,6 @@ class MetaMapServerApiTests(unittest.TestCase):
                 event_name="verification_completed",
                 verification_id="verif-300",
             )
-        )
-        self.client.post(
-            "/api/v1/cases/verif-300/actions",
-            headers=self._client_headers(ClientRole.VALIDADOR),
-            json={
-                "role": "validador",
-                "action": "approved",
-                "actor": "operador_b",
-            },
         )
         self.client.post(
             "/api/v1/cases/verif-300/actions",
@@ -282,27 +251,44 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertTrue(second.json()["duplicate"])
         self.assertEqual(second.json()["case"]["current_stage"], "bank_confirmed")
 
-    def test_transferencias_celesol_cannot_run_before_validador_approval(self) -> None:
+    def test_queue_items_are_abandoned_after_24_hours(self) -> None:
         self._post_metamap_webhook(
             self._metamap_payload(
                 event_name="verification_completed",
                 verification_id="verif-400",
             )
         )
-        response = self.client.post(
-            "/api/v1/cases/verif-400/actions",
-            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
-            json={
-                "role": "transferencias_celesol",
-                "action": "transfer_submitted",
-                "actor": "operador_a",
-                "external_transfer_id": "trx-400",
-            },
-        )
-        self.assertEqual(response.status_code, 409)
-        self.assertIn("no esta habilitado", response.json()["detail"])
+        expired_at = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        store = self.client.app.state.workflow_store
+        with store._session_factory() as session:
+            delivery = session.execute(
+                select(DeliveryRow).where(DeliveryRow.case_id == "verif-400")
+            ).scalar_one()
+            delivery.updated_at = expired_at
+            session.commit()
 
-    def test_duplicate_verification_completed_does_not_reopen_validador_queue(self) -> None:
+        queue_transferencias = self.client.get(
+            "/api/v1/queues/transferencias_celesol",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(queue_transferencias.status_code, 200)
+        self.assertEqual(queue_transferencias.json()["cases"], [])
+
+        case_response = self.client.get(
+            "/api/v1/cases/verif-400",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(case_response.status_code, 200)
+        self.assertEqual(
+            case_response.json()["case"]["current_stage"],
+            "manual_intervention_required",
+        )
+        self.assertEqual(
+            case_response.json()["case"]["deliveries"][0]["status"],
+            "abandoned",
+        )
+
+    def test_duplicate_verification_completed_does_not_reopen_transfer_queue(self) -> None:
         self._post_metamap_webhook(
             self._metamap_payload(
                 event_name="verification_completed",
@@ -311,11 +297,12 @@ class MetaMapServerApiTests(unittest.TestCase):
         )
         self.client.post(
             "/api/v1/cases/verif-410/actions",
-            headers=self._client_headers(ClientRole.VALIDADOR),
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
             json={
-                "role": "validador",
-                "action": "approved",
-                "actor": "operador_b",
+                "role": "transferencias_celesol",
+                "action": "transfer_submitted",
+                "actor": "operador_a",
+                "external_transfer_id": "trx-410",
             },
         )
 
@@ -327,12 +314,47 @@ class MetaMapServerApiTests(unittest.TestCase):
         )
         self.assertEqual(duplicate.status_code, 200)
 
-        queue_validador = self.client.get(
-            "/api/v1/queues/validador",
-            headers=self._client_headers(ClientRole.VALIDADOR),
+        queue_transferencias = self.client.get(
+            "/api/v1/queues/transferencias_celesol",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
         )
-        self.assertEqual(queue_validador.status_code, 200)
-        self.assertEqual(queue_validador.json()["cases"], [])
+        self.assertEqual(queue_transferencias.status_code, 200)
+        self.assertEqual(queue_transferencias.json()["cases"], [])
+
+    def test_internal_webhook_receipts_endpoint_prunes_logs_older_than_one_week(self) -> None:
+        self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_started",
+                verification_id="verif-old-receipt",
+            )
+        )
+        self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_completed",
+                verification_id="verif-recent-receipt",
+            )
+        )
+
+        old_timestamp = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+        store = self.client.app.state.workflow_store
+        with store._session_factory() as session:
+            old_receipt = session.execute(
+                select(MetamapWebhookReceiptRow).where(
+                    MetamapWebhookReceiptRow.verification_id == "verif-old-receipt"
+                )
+            ).scalar_one()
+            old_receipt.received_at = old_timestamp
+            session.commit()
+
+        response = self.client.get(
+            "/api/v1/internal/metamap/webhook-receipts",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(response.status_code, 200)
+        receipts = response.json()["receipts"]
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(receipts[0]["verification_id"], "verif-recent-receipt")
+        self.assertEqual(receipts[0]["processing_status"], "enqueued")
 
     def test_queue_requires_valid_client_auth(self) -> None:
         response = self.client.get("/api/v1/queues/validador")
@@ -372,15 +394,6 @@ class MetaMapServerApiTests(unittest.TestCase):
                 event_name="verification_completed",
                 verification_id="verif-501",
             )
-        )
-        self.client.post(
-            "/api/v1/cases/verif-501/actions",
-            headers=self._client_headers(ClientRole.VALIDADOR),
-            json={
-                "role": "validador",
-                "action": "approved",
-                "actor": "operador_b",
-            },
         )
         self.client.post(
             "/api/v1/cases/verif-501/actions",

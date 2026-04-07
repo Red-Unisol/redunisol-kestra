@@ -2,8 +2,7 @@
 
 Servidor inicial para el flujo:
 
-- MetaMap -> `validador`
-- `validador` -> `transferencias_celesol`
+- MetaMap -> `transferencias_celesol`
 - `transferencias_celesol` -> banco
 - callbacks del banco -> servidor
 
@@ -14,9 +13,13 @@ Este scaffold deja resuelto:
 - API FastAPI inicial
 - workflow base persistente en SQL
 - colas por rol
+- auto-validacion temporal de `verification_completed` hacia `transferencias_celesol`
 - transiciones `approved`, `rejected` y `transfer_submitted`
 - callbacks bancarios con idempotencia basica
 - bootstrap de clientes autenticados por rol
+- retencion de receipts/logs de MetaMap por 7 dias
+- abandono automatico de trabajos pendientes en cola despues de 24 horas
+- endpoint interno para inspeccionar receipts recientes de MetaMap
 - tests de workflow
 - CI de validacion y build de imagen
 - deploy automatico a `dev`
@@ -70,6 +73,7 @@ Endpoints de cliente:
 - `GET /api/v1/queues/{role}`
 - `GET /api/v1/cases/{case_id}`
 - `POST /api/v1/cases/{case_id}/actions`
+- `GET /api/v1/internal/metamap/webhook-receipts`
 
 Cabeceras requeridas:
 
@@ -83,8 +87,18 @@ Endpoints publicos protegidos por token compartido:
   - header `x-signature`
   - se loguean todos los eventos recibidos
   - solo `verification_completed` se encola y expone a clientes con `verification_id` + `resource_url`
+  - por ahora, `verification_completed` se auto-marca como validado y entra directo a la cola de `transferencias_celesol`
+  - los receipts completos se conservan por 7 dias
+- `GET /api/v1/internal/metamap/webhook-receipts`
+  - endpoint interno autenticado con `X-Client-Id` y `X-Client-Secret`
+  - devuelve receipts recientes de MetaMap para debugging
 - `POST /api/v1/bank/callbacks/...`
   - `X-Bank-Callback-Token`
+
+Comportamiento actual de colas:
+
+- todo trabajo pendiente en una cola se abandona automaticamente a las 24 horas
+- al abandonarse, el case pasa a `manual_intervention_required`
 
 ## Estructura
 

@@ -5,7 +5,7 @@ import logging
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from . import __version__
@@ -233,6 +233,16 @@ def create_app(
         _ensure_role_access(current_client, role)
         cases = workflow_store.list_cases_for_role(role)
         return {"role": role.value, "cases": [case.to_dict() for case in cases]}
+
+    @app.get("/api/v1/internal/metamap/webhook-receipts")
+    def list_metamap_webhook_receipts(
+        limit: int = Query(50, ge=1, le=200),
+        workflow_store: Any = Depends(_store_dependency),
+        current_client: AuthenticatedClient = Depends(_authenticate_client),
+    ) -> dict:
+        _ = current_client
+        receipts = workflow_store.list_metamap_webhook_receipts(limit=limit)
+        return {"receipts": receipts}
 
     @app.get("/api/v1/cases/{case_id}")
     def get_case(
