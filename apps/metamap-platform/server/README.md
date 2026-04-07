@@ -55,6 +55,9 @@ Los ejemplos versionados son:
 - `deploy/metamap-platform-server.dev.env.example`
 - `deploy/metamap-platform-server.prod.env.example`
 
+En GitHub Actions, la validacion de esos `.env.enc` usa `RUNTIME_ENV_KEY`
+desde el environment `vps-infra`.
+
 ## Auth actual
 
 Endpoints de cliente:

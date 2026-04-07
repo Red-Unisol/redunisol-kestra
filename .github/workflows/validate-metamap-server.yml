@@ -10,6 +10,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    environment: vps-infra
     env:
       RUNTIME_ENV_KEY: ${{ secrets.RUNTIME_ENV_KEY }}
     defaults:
