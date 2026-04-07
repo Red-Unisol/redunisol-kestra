@@ -38,6 +38,10 @@ Environment recomendado para esos secrets:
 
 - `vps-infra`
 
+El workflow `Validate MetaMap Server` tambien toma `RUNTIME_ENV_KEY`
+desde ese mismo environment para validar los runtime env cifrados de
+`apps/metamap-platform/server/deploy/`.
+
 ### 2. Configuracion de runtime dentro de Kestra
 
 Se usa cuando un flow necesita datos de configuracion o secretos al ejecutarse.
