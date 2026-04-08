@@ -145,6 +145,8 @@ class ValidationRecord:
     loan_number: str | None = None
     amount_raw: str | None = None
     amount_value: str | None = None
+    requested_amount_raw: str | None = None
+    requested_amount_value: str | None = None
     applicant_name: str | None = None
     document_number: str | None = None
     metadata: dict = field(default_factory=dict)
@@ -167,6 +169,8 @@ class ValidationRecord:
             "loan_number": self.loan_number,
             "amount_raw": self.amount_raw,
             "amount_value": self.amount_value,
+            "requested_amount_raw": self.requested_amount_raw,
+            "requested_amount_value": self.requested_amount_value,
             "applicant_name": self.applicant_name,
             "document_number": self.document_number,
             "metadata": self.metadata,

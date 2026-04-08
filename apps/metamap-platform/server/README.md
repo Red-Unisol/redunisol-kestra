@@ -14,6 +14,7 @@ Este corte deja resuelto:
 - API FastAPI inicial
 - persistencia durable en SQL de una proyeccion `validation` por `verification_id`
 - enriquecimiento opcional desde `resource_url` para indexar solicitud, numero de prestamo e importe
+- enriquecimiento opcional desde `resource_url` para indexar solicitud, numero de prestamo, importe total e importe solicitado
 - listado, busqueda y fetch puntual de validaciones
 - bootstrap de clientes autenticados por rol
 - retencion de receipts/logs de MetaMap por 7 dias
@@ -130,8 +131,10 @@ Respuesta tipo:
     "normalized_status": "completed",
     "request_number": "241325",
     "loan_number": "1010477",
-    "amount_raw": "123.456,78",
-    "amount_value": "123456.78",
+    "amount_raw": "223.456,78",
+    "amount_value": "223456.78",
+    "requested_amount_raw": "123.456,78",
+    "requested_amount_value": "123456.78",
     "event_count": 1
   }
 }
@@ -153,6 +156,10 @@ Filtros soportados:
 - `flow_id`
 - `request_number`
 - `loan_number`
+- `amount_raw`
+- `amount_value`
+- `requested_amount_raw`
+- `requested_amount_value`
 - `event_name`
 - `normalized_status`
 - `q`

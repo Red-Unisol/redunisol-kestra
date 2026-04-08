@@ -15,6 +15,8 @@ class ValidationEnrichment:
     loan_number: str | None = None
     amount_raw: str | None = None
     amount_value: str | None = None
+    requested_amount_raw: str | None = None
+    requested_amount_value: str | None = None
     applicant_name: str | None = None
     document_number: str | None = None
 
@@ -24,6 +26,8 @@ class ValidationEnrichment:
             loan_number=self.loan_number or fallback.loan_number,
             amount_raw=self.amount_raw or fallback.amount_raw,
             amount_value=self.amount_value or fallback.amount_value,
+            requested_amount_raw=self.requested_amount_raw or fallback.requested_amount_raw,
+            requested_amount_value=self.requested_amount_value or fallback.requested_amount_value,
             applicant_name=self.applicant_name or fallback.applicant_name,
             document_number=self.document_number or fallback.document_number,
         )
@@ -90,12 +94,15 @@ def _fetch_access_token(
 def extract_validation_enrichment(payload: Any) -> ValidationEnrichment:
     request_number = _extract_request_number(payload)
     loan_number = _extract_loan_number(payload)
-    amount_raw = _extract_amount(payload)
+    requested_amount_raw = _extract_requested_amount(payload)
+    amount_raw = _extract_amount(payload, fallback=requested_amount_raw)
     return ValidationEnrichment(
         request_number=request_number,
         loan_number=loan_number,
         amount_raw=amount_raw,
         amount_value=_parse_decimal_string(amount_raw),
+        requested_amount_raw=requested_amount_raw,
+        requested_amount_value=_parse_decimal_string(requested_amount_raw),
         applicant_name=_extract_name(payload),
         document_number=_extract_document(payload),
     )
@@ -115,11 +122,33 @@ def _extract_loan_number(payload: Any) -> str | None:
     )
 
 
-def _extract_amount(payload: Any) -> str | None:
+def _extract_requested_amount(payload: Any) -> str | None:
     return _find_labeled_value(
         payload,
-        ["importe solicitado", "monto solicitado", "importe", "monto"],
+        ["importe solicitado", "monto solicitado"],
+        exact=True,
     ) or _search_exact(
+        payload,
+        ["requestedAmount", "requested_amount", "importeSolicitado"],
+    )
+
+
+def _extract_amount(payload: Any, *, fallback: str | None = None) -> str | None:
+    return _find_labeled_value(
+        payload,
+        ["importe total", "monto total"],
+        exact=True,
+    ) or _find_labeled_value(
+        payload,
+        ["importe liquidado", "monto liquidado"],
+        exact=True,
+    ) or _search_exact(
+        payload,
+        ["totalAmount", "total_amount", "importeTotal", "liquidatedAmount", "liquidated_amount"],
+    ) or _find_labeled_value(
+        payload,
+        ["importe solicitado", "monto solicitado", "importe", "monto"],
+    ) or fallback or _search_exact(
         payload,
         ["amount", "requestedAmount", "requested_amount", "importeSolicitado"],
     )
@@ -161,15 +190,22 @@ def _extract_document(payload: Any) -> str | None:
     )
 
 
-def _find_labeled_value(payload: Any, keywords: list[str]) -> str | None:
+def _find_labeled_value(
+    payload: Any,
+    keywords: list[str],
+    *,
+    exact: bool = False,
+) -> str | None:
     for label, value in _iter_labeled_values(payload):
-        if _label_matches(label, keywords):
+        if _label_matches(label, keywords, exact=exact):
             return value
     return None
 
 
-def _label_matches(label: str, keywords: list[str]) -> bool:
+def _label_matches(label: str, keywords: list[str], *, exact: bool = False) -> bool:
     normalized = _normalize_label(label)
+    if exact:
+        return any(_normalize_label(keyword) == normalized for keyword in keywords)
     return any(_normalize_label(keyword) in normalized for keyword in keywords)
 
 

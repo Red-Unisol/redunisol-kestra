@@ -169,6 +169,8 @@ def create_app(
                     loan_number=enrichment.loan_number,
                     amount_raw=enrichment.amount_raw,
                     amount_value=enrichment.amount_value,
+                    requested_amount_raw=enrichment.requested_amount_raw,
+                    requested_amount_value=enrichment.requested_amount_value,
                     applicant_name=enrichment.applicant_name,
                     document_number=enrichment.document_number,
                 )
@@ -415,6 +417,8 @@ def _maybe_backfill_validation_enrichment(
             enrichment.loan_number,
             enrichment.amount_raw,
             enrichment.amount_value,
+            enrichment.requested_amount_raw,
+            enrichment.requested_amount_value,
             enrichment.applicant_name,
             enrichment.document_number,
         ]
@@ -428,6 +432,8 @@ def _maybe_backfill_validation_enrichment(
             loan_number=enrichment.loan_number,
             amount_raw=enrichment.amount_raw,
             amount_value=enrichment.amount_value,
+            requested_amount_raw=enrichment.requested_amount_raw,
+            requested_amount_value=enrichment.requested_amount_value,
             applicant_name=enrichment.applicant_name,
             document_number=enrichment.document_number,
         )
@@ -445,6 +451,7 @@ def _validation_needs_enrichment(validation: Any) -> bool:
         [
             not validation.request_number,
             not validation.amount_raw and not validation.amount_value,
+            not validation.requested_amount_raw and not validation.requested_amount_value,
             not validation.applicant_name,
             not validation.document_number,
         ]

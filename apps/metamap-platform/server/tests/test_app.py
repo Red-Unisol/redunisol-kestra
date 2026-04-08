@@ -68,7 +68,8 @@ class MetaMapServerApiTests(unittest.TestCase):
         self._resource_payloads["verif-100"] = self._metamap_resource_payload(
             request_number="241325",
             loan_number="1010477",
-            amount_raw="123.456,78",
+            amount_raw="223.456,78",
+            requested_amount_raw="123.456,78",
             applicant_name="Ada Lovelace",
             document_number="30111222",
         )
@@ -96,8 +97,14 @@ class MetaMapServerApiTests(unittest.TestCase):
         )
         self.assertEqual(ingest.json()["validation"]["request_number"], "241325")
         self.assertEqual(ingest.json()["validation"]["loan_number"], "1010477")
-        self.assertEqual(ingest.json()["validation"]["amount_raw"], "123.456,78")
-        self.assertEqual(ingest.json()["validation"]["amount_value"], "123456.78")
+        self.assertEqual(ingest.json()["validation"]["amount_raw"], "223.456,78")
+        self.assertEqual(ingest.json()["validation"]["amount_value"], "223456.78")
+        self.assertEqual(
+            ingest.json()["validation"]["requested_amount_raw"], "123.456,78"
+        )
+        self.assertEqual(
+            ingest.json()["validation"]["requested_amount_value"], "123456.78"
+        )
         self.assertEqual(ingest.json()["validation"]["applicant_name"], "Ada Lovelace")
         self.assertEqual(ingest.json()["validation"]["document_number"], "30111222")
 
@@ -118,6 +125,10 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(
             validations.json()["items"][0]["applicant_name"],
             "Ada Lovelace",
+        )
+        self.assertEqual(
+            validations.json()["items"][0]["requested_amount_raw"],
+            "123.456,78",
         )
         self.assertEqual(
             validations.json()["items"][0]["document_number"],
@@ -272,7 +283,8 @@ class MetaMapServerApiTests(unittest.TestCase):
         )
         self._resource_payloads["verif-backfill"] = self._metamap_resource_payload(
             request_number="241999",
-            amount_raw="3210,00",
+            amount_raw="6543,00",
+            requested_amount_raw="3210,00",
             applicant_name="Grace Hopper",
             document_number="27888999",
         )
@@ -283,9 +295,56 @@ class MetaMapServerApiTests(unittest.TestCase):
         )
         self.assertEqual(validation.status_code, 200)
         self.assertEqual(validation.json()["validation"]["request_number"], "241999")
-        self.assertEqual(validation.json()["validation"]["amount_value"], "3210.00")
+        self.assertEqual(validation.json()["validation"]["amount_value"], "6543.00")
+        self.assertEqual(
+            validation.json()["validation"]["requested_amount_value"], "3210.00"
+        )
         self.assertEqual(validation.json()["validation"]["applicant_name"], "Grace Hopper")
         self.assertEqual(validation.json()["validation"]["document_number"], "27888999")
+
+    def test_signed_document_details_exposes_requested_amount(self) -> None:
+        self._resource_payloads["verif-signed-doc"] = {
+            "signedDocumentDetails": [
+                {
+                    "customVariables": {
+                        "variableKey": {"title": "Solicitud", "value": "241394"},
+                        "variableKey2": {
+                            "title": "Importe solicitado",
+                            "value": "$ 1.500.000,00",
+                        },
+                        "variableKey9": {
+                            "title": "NumeroPrestamo",
+                            "value": "1010521",
+                        },
+                        "variableKey10": {
+                            "title": "Importe liquidado",
+                            "value": "$ 1.770.000,00",
+                        },
+                        "variableKey11": {
+                            "title": "Importe total",
+                            "value": "$ 2.580.681,70",
+                        },
+                    }
+                }
+            ],
+            "applicantName": "Alan Turing",
+        }
+        ingest = self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="validation_completed",
+                verification_id="verif-signed-doc",
+            )
+        )
+
+        self.assertEqual(ingest.status_code, 200)
+        self.assertEqual(
+            ingest.json()["validation"]["requested_amount_raw"], "$ 1.500.000,00"
+        )
+        self.assertEqual(
+            ingest.json()["validation"]["requested_amount_value"], "1500000.00"
+        )
+        self.assertEqual(ingest.json()["validation"]["amount_raw"], "$ 2.580.681,70")
+        self.assertEqual(ingest.json()["validation"]["amount_value"], "2580681.70")
 
     def test_internal_webhook_receipts_endpoint_prunes_logs_older_than_one_week(self) -> None:
         self._post_metamap_webhook(
@@ -416,17 +475,25 @@ class MetaMapServerApiTests(unittest.TestCase):
         request_number: str | None = None,
         loan_number: str | None = None,
         amount_raw: str | None = None,
+        requested_amount_raw: str | None = None,
         applicant_name: str | None = None,
         document_number: str | None = None,
     ) -> dict:
         fields = {}
         if request_number is not None:
             fields["variableKey1"] = {"title": "Solicitud", "value": request_number}
+        if requested_amount_raw is None:
+            requested_amount_raw = amount_raw
+        if requested_amount_raw is not None:
+            fields["variableKey2"] = {
+                "title": "Importe solicitado",
+                "value": requested_amount_raw,
+            }
         if loan_number is not None:
             fields["variableKey9"] = {"title": "NumeroPrestamo", "value": loan_number}
         if amount_raw is not None:
             fields["variableKey10"] = {
-                "title": "Importe solicitado",
+                "title": "Importe total",
                 "value": amount_raw,
             }
         if document_number is not None:

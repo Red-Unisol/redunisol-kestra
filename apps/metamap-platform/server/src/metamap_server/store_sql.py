@@ -62,6 +62,8 @@ class ValidationRow(Base):
     loan_number: Mapped[str | None] = mapped_column(String(120))
     amount_raw: Mapped[str | None] = mapped_column(String(120))
     amount_value: Mapped[str | None] = mapped_column(String(64))
+    requested_amount_raw: Mapped[str | None] = mapped_column(String(120))
+    requested_amount_value: Mapped[str | None] = mapped_column(String(64))
     applicant_name: Mapped[str | None] = mapped_column(String(255))
     document_number: Mapped[str | None] = mapped_column(String(120))
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
@@ -151,6 +153,8 @@ class SqlValidationStore:
         loan_number: str | None = None,
         amount_raw: str | None = None,
         amount_value: str | None = None,
+        requested_amount_raw: str | None = None,
+        requested_amount_value: str | None = None,
         applicant_name: str | None = None,
         document_number: str | None = None,
     ) -> ValidationRecord:
@@ -182,6 +186,8 @@ class SqlValidationStore:
                     loan_number=loan_number,
                     amount_raw=amount_raw,
                     amount_value=amount_value,
+                    requested_amount_raw=requested_amount_raw,
+                    requested_amount_value=requested_amount_value,
                     applicant_name=applicant_name,
                     document_number=document_number,
                     metadata_json=metadata,
@@ -205,6 +211,12 @@ class SqlValidationStore:
                 row.loan_number = loan_number or row.loan_number
                 row.amount_raw = amount_raw or row.amount_raw
                 row.amount_value = amount_value or row.amount_value
+                row.requested_amount_raw = (
+                    requested_amount_raw or row.requested_amount_raw
+                )
+                row.requested_amount_value = (
+                    requested_amount_value or row.requested_amount_value
+                )
                 row.applicant_name = applicant_name or row.applicant_name
                 row.document_number = document_number or row.document_number
                 row.metadata_json = metadata or row.metadata_json
@@ -276,6 +288,8 @@ class SqlValidationStore:
         loan_number: str | None = None,
         amount_raw: str | None = None,
         amount_value: str | None = None,
+        requested_amount_raw: str | None = None,
+        requested_amount_value: str | None = None,
         applicant_name: str | None = None,
         document_number: str | None = None,
     ) -> ValidationRecord:
@@ -287,6 +301,10 @@ class SqlValidationStore:
             row.loan_number = loan_number or row.loan_number
             row.amount_raw = amount_raw or row.amount_raw
             row.amount_value = amount_value or row.amount_value
+            row.requested_amount_raw = requested_amount_raw or row.requested_amount_raw
+            row.requested_amount_value = (
+                requested_amount_value or row.requested_amount_value
+            )
             row.applicant_name = applicant_name or row.applicant_name
             row.document_number = document_number or row.document_number
             session.commit()
@@ -378,6 +396,12 @@ class SqlValidationStore:
                     func.lower(func.coalesce(ValidationRow.loan_number, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.amount_raw, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.amount_value, "")).like(pattern),
+                    func.lower(
+                        func.coalesce(ValidationRow.requested_amount_raw, "")
+                    ).like(pattern),
+                    func.lower(
+                        func.coalesce(ValidationRow.requested_amount_value, "")
+                    ).like(pattern),
                     func.lower(func.coalesce(ValidationRow.applicant_name, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.document_number, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.resource_url, "")).like(pattern),
@@ -397,6 +421,8 @@ class SqlValidationStore:
             loan_number=row.loan_number,
             amount_raw=row.amount_raw,
             amount_value=row.amount_value,
+            requested_amount_raw=row.requested_amount_raw,
+            requested_amount_value=row.requested_amount_value,
             applicant_name=row.applicant_name,
             document_number=row.document_number,
             metadata=row.metadata_json or {},
@@ -433,6 +459,8 @@ class SqlValidationStore:
             "loan_number": "VARCHAR(120)",
             "amount_raw": "VARCHAR(120)",
             "amount_value": "VARCHAR(64)",
+            "requested_amount_raw": "VARCHAR(120)",
+            "requested_amount_value": "VARCHAR(64)",
             "applicant_name": "VARCHAR(255)",
             "document_number": "VARCHAR(120)",
         }
