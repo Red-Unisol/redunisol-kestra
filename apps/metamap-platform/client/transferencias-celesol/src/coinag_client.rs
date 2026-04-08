@@ -65,6 +65,16 @@ impl CoinagClient {
             config: config.clone(),
             token_cache: Arc::new(Mutex::new(TokenCache::default())),
         })
+        .inspect(|client| {
+            log::info!(
+                "Cliente Coinag inicializado via {}.",
+                if client.uses_ssh() {
+                    "ssh"
+                } else {
+                    "http directo"
+                }
+            );
+        })
     }
 
     pub fn uses_ssh(&self) -> bool {
@@ -78,17 +88,27 @@ impl CoinagClient {
     }
 
     pub fn lookup_cbu_cuil(&self, cbu: &str) -> Result<String> {
+        log::debug!(
+            "Consultando titularidad Coinag para CBU {}.",
+            mask_value(cbu, 6)
+        );
         let response = self.request_authorized_json(
             Method::GET,
             format!(
                 "{}/Consulta/CBU/{}",
-                self.config.api_base.trim_end_matches('/'),
+                self.config.lookup_api_base.trim_end_matches('/'),
                 cbu
             ),
             RequestBody::default(),
         )?;
-        extract_coinag_cuil(&response)
-            .ok_or_else(|| anyhow!("Coinag no devolvio CUIL/CUIT para el CBU destino."))
+        let coinag_cuil = extract_coinag_cuil(&response)
+            .ok_or_else(|| anyhow!("Coinag no devolvio CUIL/CUIT para el CBU destino."))?;
+        log::debug!(
+            "Coinag devolvio titularidad {} para CBU {}.",
+            mask_value(&coinag_cuil, 4),
+            mask_value(cbu, 6)
+        );
+        Ok(coinag_cuil)
     }
 
     pub fn build_transfer_payload(&self, case: &HydratedCase) -> Result<Value> {
@@ -124,8 +144,8 @@ impl CoinagClient {
 
         Ok(json!({
             "idTrxCliente": self.build_id_trx_cliente(
-                case.metamap.request_number.as_deref(),
-                Some(case.verification_id.as_str()),
+                Some(case.request_oid()),
+                case.server_validation.verification_id.as_deref(),
             )?,
             "cuitDebito": cuit_debito,
             "cbuDebito": cbu_debito,
@@ -139,11 +159,21 @@ impl CoinagClient {
     }
 
     pub fn perform_transfer(&self, payload: &Value) -> Result<Value> {
+        log::info!(
+            "Enviando transferencia a Coinag: idTrxCliente={:?}, cbuCredito={}, importe={:?}.",
+            payload.get("idTrxCliente").and_then(value_to_string),
+            payload
+                .get("cbuCredito")
+                .and_then(value_to_string)
+                .map(|value| mask_value(&value, 6))
+                .unwrap_or_else(|| "N/D".to_owned()),
+            payload.get("importe").and_then(value_to_string)
+        );
         self.request_authorized_json(
             Method::POST,
             format!(
                 "{}{}",
-                self.config.api_base.trim_end_matches('/'),
+                self.config.transfer_api_base.trim_end_matches('/'),
                 normalize_path(&self.config.endpoint),
             ),
             RequestBody::json(payload)?,
@@ -172,6 +202,7 @@ impl CoinagClient {
         let response =
             self.execute_authorized_request(method.clone(), &url, body.clone(), false)?;
         if response.status == StatusCode::UNAUTHORIZED {
+            log::warn!("Coinag respondio 401 para {url}. Se fuerza refresh de token.");
             let retried = self.execute_authorized_request(method, &url, body, true)?;
             return decode_json_response(retried);
         }
@@ -204,6 +235,7 @@ impl CoinagClient {
         body: RequestBody,
     ) -> Result<TransportResponse> {
         if let Some(ssh_http) = &self.ssh_http {
+            log::debug!("Coinag via SSH: {} {}", method, url);
             return ssh_http.execute(TransportRequest {
                 method,
                 url: url.to_owned(),
@@ -216,6 +248,7 @@ impl CoinagClient {
             .direct_http
             .as_ref()
             .ok_or_else(|| anyhow!("No hay transporte HTTP disponible para Coinag."))?;
+        let method_name = method.to_string();
         let mut request = direct_http.request(method, url);
         for (name, value) in headers {
             request = request.header(name, value);
@@ -229,6 +262,7 @@ impl CoinagClient {
             .bytes()
             .context("No se pudo leer la respuesta HTTP de Coinag.")?
             .to_vec();
+        log::debug!("Coinag respondio {} para {} {}.", status, method_name, url);
         Ok(TransportResponse { status, body })
     }
 
@@ -237,11 +271,13 @@ impl CoinagClient {
             if let Ok(cache) = self.token_cache.lock() {
                 if let (Some(token), Some(expires_at)) = (&cache.access_token, cache.expires_at) {
                     if Instant::now() < expires_at {
+                        log::debug!("Reutilizando token Coinag desde cache.");
                         return Ok(token.clone());
                     }
                 }
             }
         }
+        log::debug!("Solicitando nuevo token a Coinag.");
 
         let mut form = vec![
             ("grant_type".to_owned(), "password".to_owned()),
@@ -312,6 +348,7 @@ impl CoinagClient {
             .map_err(|_| anyhow!("No se pudo bloquear la cache de token Coinag."))?;
         cache.access_token = Some(access_token.clone());
         cache.expires_at = Some(expires_at);
+        log::debug!("Token Coinag actualizado. Expires in={}s.", expires_in);
         Ok(access_token)
     }
 
@@ -458,4 +495,12 @@ fn read_and_increment_sequence(path: &Path) -> Result<u64> {
     fs::write(path, next.to_string())
         .with_context(|| format!("No se pudo persistir el secuencial {:?}", path))?;
     Ok(next)
+}
+
+fn mask_value(value: &str, visible_suffix: usize) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() <= visible_suffix {
+        return trimmed.to_owned();
+    }
+    format!("***{}", &trimmed[trimmed.len() - visible_suffix..])
 }

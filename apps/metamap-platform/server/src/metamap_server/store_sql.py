@@ -62,6 +62,8 @@ class ValidationRow(Base):
     loan_number: Mapped[str | None] = mapped_column(String(120))
     amount_raw: Mapped[str | None] = mapped_column(String(120))
     amount_value: Mapped[str | None] = mapped_column(String(64))
+    applicant_name: Mapped[str | None] = mapped_column(String(255))
+    document_number: Mapped[str | None] = mapped_column(String(120))
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
     latest_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     first_received_at: Mapped[str] = mapped_column(String(64), default=_utc_now, nullable=False)
@@ -149,6 +151,8 @@ class SqlValidationStore:
         loan_number: str | None = None,
         amount_raw: str | None = None,
         amount_value: str | None = None,
+        applicant_name: str | None = None,
+        document_number: str | None = None,
     ) -> ValidationRecord:
         normalized_event_name = normalize_event_name(event_name)
         if not normalized_event_name:
@@ -178,6 +182,8 @@ class SqlValidationStore:
                     loan_number=loan_number,
                     amount_raw=amount_raw,
                     amount_value=amount_value,
+                    applicant_name=applicant_name,
+                    document_number=document_number,
                     metadata_json=metadata,
                     latest_payload=payload,
                     first_received_at=now,
@@ -199,6 +205,8 @@ class SqlValidationStore:
                 row.loan_number = loan_number or row.loan_number
                 row.amount_raw = amount_raw or row.amount_raw
                 row.amount_value = amount_value or row.amount_value
+                row.applicant_name = applicant_name or row.applicant_name
+                row.document_number = document_number or row.document_number
                 row.metadata_json = metadata or row.metadata_json
                 row.latest_payload = payload
                 row.last_received_at = now
@@ -258,6 +266,30 @@ class SqlValidationStore:
             row = session.get(ValidationRow, verification_id)
             if row is None:
                 raise WorkflowError(f"Validacion {verification_id} inexistente.")
+            return self._to_validation_record(row)
+
+    def update_validation_enrichment(
+        self,
+        *,
+        verification_id: str,
+        request_number: str | None = None,
+        loan_number: str | None = None,
+        amount_raw: str | None = None,
+        amount_value: str | None = None,
+        applicant_name: str | None = None,
+        document_number: str | None = None,
+    ) -> ValidationRecord:
+        with self._session_factory() as session:
+            row = session.get(ValidationRow, verification_id)
+            if row is None:
+                raise WorkflowError(f"Validacion {verification_id} inexistente.")
+            row.request_number = request_number or row.request_number
+            row.loan_number = loan_number or row.loan_number
+            row.amount_raw = amount_raw or row.amount_raw
+            row.amount_value = amount_value or row.amount_value
+            row.applicant_name = applicant_name or row.applicant_name
+            row.document_number = document_number or row.document_number
+            session.commit()
             return self._to_validation_record(row)
 
     def search_validations(
@@ -346,6 +378,8 @@ class SqlValidationStore:
                     func.lower(func.coalesce(ValidationRow.loan_number, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.amount_raw, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.amount_value, "")).like(pattern),
+                    func.lower(func.coalesce(ValidationRow.applicant_name, "")).like(pattern),
+                    func.lower(func.coalesce(ValidationRow.document_number, "")).like(pattern),
                     func.lower(func.coalesce(ValidationRow.resource_url, "")).like(pattern),
                 )
             )
@@ -363,6 +397,8 @@ class SqlValidationStore:
             loan_number=row.loan_number,
             amount_raw=row.amount_raw,
             amount_value=row.amount_value,
+            applicant_name=row.applicant_name,
+            document_number=row.document_number,
             metadata=row.metadata_json or {},
             latest_payload=row.latest_payload or {},
             first_received_at=row.first_received_at,
@@ -397,6 +433,8 @@ class SqlValidationStore:
             "loan_number": "VARCHAR(120)",
             "amount_raw": "VARCHAR(120)",
             "amount_value": "VARCHAR(64)",
+            "applicant_name": "VARCHAR(255)",
+            "document_number": "VARCHAR(120)",
         }
         missing_columns = [
             (name, ddl)

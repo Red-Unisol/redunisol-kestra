@@ -169,6 +169,8 @@ def create_app(
                     loan_number=enrichment.loan_number,
                     amount_raw=enrichment.amount_raw,
                     amount_value=enrichment.amount_value,
+                    applicant_name=enrichment.applicant_name,
+                    document_number=enrichment.document_number,
                 )
                 processing_status = "stored"
             else:
@@ -280,6 +282,14 @@ def create_app(
             normalized_status=normalized_status,
             q=q,
         )
+        items = [
+            _maybe_backfill_validation_enrichment(
+                app=app,
+                validation_store=validation_store,
+                validation=item,
+            )
+            for item in items
+        ]
         return {
             "items": [item.to_dict(include_payload=include_payload) for item in items],
             "pagination": {
@@ -312,6 +322,11 @@ def create_app(
             validation = validation_store.get_validation(verification_id)
         except WorkflowError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        validation = _maybe_backfill_validation_enrichment(
+            app=app,
+            validation_store=validation_store,
+            validation=validation,
+        )
         return {"validation": validation.to_dict(include_payload=include_payload)}
 
     @app.get("/api/v1/internal/metamap/webhook-receipts")
@@ -369,3 +384,68 @@ def _extract_metamap_event_name(payload: dict) -> str | None:
         return None
     event_name = normalize_event_name(str(raw_value))
     return event_name or None
+
+
+def _maybe_backfill_validation_enrichment(
+    *,
+    app: FastAPI,
+    validation_store: Any,
+    validation: Any,
+) -> Any:
+    if app.state.metamap_resource_fetcher is None:
+        return validation
+    if not validation.resource_url or not _validation_needs_enrichment(validation):
+        return validation
+
+    try:
+        resource_payload = app.state.metamap_resource_fetcher(validation.resource_url)
+    except Exception as exc:
+        logger.warning(
+            "MetaMap resource backfill failed: verification_id=%s resource=%s error=%s",
+            validation.verification_id,
+            validation.resource_url,
+            exc,
+        )
+        return validation
+
+    enrichment = extract_validation_enrichment(resource_payload)
+    if not any(
+        [
+            enrichment.request_number,
+            enrichment.loan_number,
+            enrichment.amount_raw,
+            enrichment.amount_value,
+            enrichment.applicant_name,
+            enrichment.document_number,
+        ]
+    ):
+        return validation
+
+    try:
+        return validation_store.update_validation_enrichment(
+            verification_id=validation.verification_id,
+            request_number=enrichment.request_number,
+            loan_number=enrichment.loan_number,
+            amount_raw=enrichment.amount_raw,
+            amount_value=enrichment.amount_value,
+            applicant_name=enrichment.applicant_name,
+            document_number=enrichment.document_number,
+        )
+    except Exception as exc:
+        logger.warning(
+            "MetaMap resource backfill persist failed: verification_id=%s error=%s",
+            validation.verification_id,
+            exc,
+        )
+        return validation
+
+
+def _validation_needs_enrichment(validation: Any) -> bool:
+    return any(
+        [
+            not validation.request_number,
+            not validation.amount_raw and not validation.amount_value,
+            not validation.applicant_name,
+            not validation.document_number,
+        ]
+    )

@@ -22,13 +22,8 @@ pub fn write_receipt(
     let timestamp = Local::now();
     let file_name = format!(
         "{}-{}-{}.pdf",
-        sanitize_filename(
-            case.metamap
-                .request_number
-                .as_deref()
-                .unwrap_or("solicitud")
-        ),
-        sanitize_filename(case.metamap.name.as_str()),
+        sanitize_filename(case.request_oid()),
+        sanitize_filename(case.display_name().as_str()),
         timestamp.format("%Y%m%d-%H%M%S"),
     );
     let receipt_path = receipts_dir.join(file_name);
@@ -50,17 +45,16 @@ pub fn write_receipt(
         "",
         &format!("Fecha: {}", timestamp.format("%Y-%m-%d %H:%M:%S")),
         &format!("Operador: {operator_name}"),
-        &format!("Case ID: {}", case.case_id),
-        &format!("Verification ID: {}", case.verification_id),
+        &format!("Solicitud: {}", case.request_oid()),
         &format!(
-            "Solicitud: {}",
-            case.metamap.request_number.as_deref().unwrap_or("N/D")
+            "Verification ID: {}",
+            case.server_validation
+                .verification_id
+                .as_deref()
+                .unwrap_or("N/D")
         ),
-        &format!("Titular: {}", case.metamap.name),
-        &format!(
-            "Documento: {}",
-            case.metamap.document.as_deref().unwrap_or("N/D")
-        ),
+        &format!("Titular: {}", case.display_name()),
+        &format!("Documento: {}", case.document_display()),
         &format!(
             "CBU destino: {}",
             case.core.transfer_cbu.as_deref().unwrap_or("N/D")

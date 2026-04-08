@@ -29,53 +29,84 @@ impl CoreClient {
 
     pub fn fetch_core_snapshot(
         &self,
-        request_number: Option<&str>,
+        request_oid: &str,
         metamap_document: Option<&str>,
     ) -> Result<CoreSnapshot> {
-        let mut snapshot = CoreSnapshot::default();
-        if let Some(request_number) = request_number {
-            if let Some(criteria) = build_eval_criteria("Oid", request_number) {
-                let result = self.evaluate_obj(json!({
-                    "cmd": criteria,
-                    "tipo": "PreSolicitud.Module.Solicitud",
-                    "campos": "Estado.Descripcion;MontoAFinanciar;CUIT;NroDocumento;Prestamo.[CBU transferencia]",
-                }))?;
-                snapshot.request_status =
-                    read_indexed_value(&result, 0, &["Estado.Descripcion", "EstadoDescripcion"]);
-                snapshot.request_amount_raw = read_indexed_value(&result, 1, &["MontoAFinanciar"]);
-                snapshot.request_amount = snapshot
-                    .request_amount_raw
-                    .as_deref()
-                    .and_then(parse_decimal);
-                snapshot.request_cuil = read_indexed_value(&result, 2, &["CUIT", "Cuit", "cuit"]);
-                snapshot.request_document = read_indexed_value(
-                    &result,
-                    3,
-                    &["NroDocumento", "nroDocumento", "NroDoc", "nroDoc"],
-                );
-                snapshot.transfer_cbu = read_indexed_value(
-                    &result,
-                    4,
-                    &[
-                        "Prestamo.[CBU transferencia]",
-                        "Prestamo.CBU transferencia",
-                        "prestamo.cbu transferencia",
-                    ],
-                );
-            }
+        log::debug!(
+            "Consultando snapshot de core para solicitud {}.",
+            request_oid.trim()
+        );
+        let criteria = build_eval_criteria("Oid", request_oid)
+            .context("No se pudo construir el criterio para consultar la solicitud.")?;
+        let result = self.evaluate_obj(json!({
+            "cmd": criteria,
+            "tipo": "PreSolicitud.Module.Solicitud",
+            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;CUIT;NroDocumento;Prestamo.[CBU transferencia]",
+        }))?;
+        let mut snapshot = parse_core_snapshot(&result);
+        if snapshot.request_oid.is_empty() {
+            snapshot.request_oid = request_oid.trim().to_owned();
         }
 
-        if let Some(document) = metamap_document {
+        let document_for_lookup = metamap_document.or(snapshot.request_document.as_deref());
+        if let Some(document) = document_for_lookup {
+            log::debug!(
+                "Resolviendo CUIL por documento {} para solicitud {}.",
+                mask_value(document, 4),
+                snapshot.request_oid
+            );
             snapshot.document_cuil = self.fetch_system_cuil_by_document(document)?;
         }
-
+        log::debug!(
+            "Core snapshot resuelto para solicitud {}: estado={:?}, monto={:?}, cbu={}.",
+            snapshot.request_oid,
+            snapshot.request_status,
+            snapshot.request_amount_raw,
+            snapshot
+                .transfer_cbu
+                .as_deref()
+                .map(|value| mask_value(value, 6))
+                .unwrap_or_else(|| "N/D".to_owned())
+        );
         Ok(snapshot)
     }
 
-    fn fetch_system_cuil_by_document(&self, document: &str) -> Result<Option<String>> {
+    pub fn fetch_transfer_candidates(&self) -> Result<Vec<CoreSnapshot>> {
+        log::debug!("Consultando lista de solicitudes en 'A Transferir' en core.");
+        let result = self.evaluate_list(json!({
+            "cmd": "[Estado.Descripcion]='A Transferir'",
+            "tipo": "PreSolicitud.Module.Solicitud",
+            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;CUIT;NroDocumento;Prestamo.[CBU transferencia]",
+            "max": 5000,
+        }))?;
+
+        let Value::Array(rows) = result else {
+            return Ok(Vec::new());
+        };
+
+        let mut items = Vec::new();
+        for row in rows {
+            let snapshot = parse_core_snapshot(&row);
+            if snapshot.request_oid.trim().is_empty() {
+                continue;
+            }
+            items.push(snapshot);
+        }
+        log::info!(
+            "Core devolvio {} solicitudes en 'A Transferir'.",
+            items.len()
+        );
+        Ok(items)
+    }
+
+    pub fn fetch_system_cuil_by_document(&self, document: &str) -> Result<Option<String>> {
         let Some(criteria) = build_eval_criteria("NroDoc", document) else {
             return Ok(None);
         };
+        log::debug!(
+            "Consultando CUIL por documento {} en core.",
+            mask_value(document, 4)
+        );
         let result = self.evaluate_obj(json!({
             "cmd": criteria,
             "tipo": "F.Module.SocioMutual",
@@ -100,7 +131,21 @@ impl CoreClient {
         Ok(Some(core_cuil))
     }
 
+    fn evaluate_list(&self, payload: Value) -> Result<Value> {
+        log::debug!("POST {}/api/Empresa/EvaluateList", self.base_url);
+        self.http
+            .post(format!("{}/api/Empresa/EvaluateList", self.base_url))
+            .json(&payload)
+            .send()
+            .context("No se pudo consultar EvaluateList en el core financiero.")?
+            .error_for_status()
+            .context("EvaluateList devolvio error en el core financiero.")?
+            .json::<Value>()
+            .context("No se pudo decodificar la respuesta de EvaluateList.")
+    }
+
     fn evaluate_obj(&self, payload: Value) -> Result<Value> {
+        log::debug!("POST {}/api/Empresa/EvaluateObj", self.base_url);
         self.http
             .post(format!("{}/api/Empresa/EvaluateObj", self.base_url))
             .json(&payload)
@@ -110,6 +155,32 @@ impl CoreClient {
             .context("EvaluateObj devolvio error en el core financiero.")?
             .json::<Value>()
             .context("No se pudo decodificar la respuesta de EvaluateObj.")
+    }
+}
+
+fn parse_core_snapshot(value: &Value) -> CoreSnapshot {
+    let request_amount_raw = read_indexed_value(value, 2, &["MontoAFinanciar"]);
+    CoreSnapshot {
+        request_oid: read_indexed_value(value, 0, &["Oid", "ID"]).unwrap_or_default(),
+        request_status: read_indexed_value(value, 1, &["Estado.Descripcion", "EstadoDescripcion"]),
+        request_amount: request_amount_raw.as_deref().and_then(parse_decimal),
+        request_amount_raw,
+        request_cuil: read_indexed_value(value, 3, &["CUIT", "Cuit", "cuit"]),
+        request_document: read_indexed_value(
+            value,
+            4,
+            &["NroDocumento", "nroDocumento", "NroDoc", "nroDoc"],
+        ),
+        transfer_cbu: read_indexed_value(
+            value,
+            5,
+            &[
+                "Prestamo.[CBU transferencia]",
+                "Prestamo.CBU transferencia",
+                "prestamo.cbu transferencia",
+            ],
+        ),
+        ..CoreSnapshot::default()
     }
 }
 
@@ -151,4 +222,12 @@ fn build_eval_criteria(field: &str, value: &str) -> Option<String> {
     }
     let escaped = trimmed.replace('\'', "''");
     Some(format!("[{field}]='{escaped}'"))
+}
+
+fn mask_value(value: &str, visible_suffix: usize) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() <= visible_suffix {
+        return trimmed.to_owned();
+    }
+    format!("***{}", &trimmed[trimmed.len() - visible_suffix..])
 }

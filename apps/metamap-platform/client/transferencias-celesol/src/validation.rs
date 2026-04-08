@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
 
-use crate::models::{CoreSnapshot, MetamapSnapshot, ValidationReport};
+use crate::models::{CoreSnapshot, MetamapSnapshot, ValidationReport, ValidationSnapshot};
 
 pub fn normalize_digits(value: impl AsRef<str>) -> Option<String> {
     let digits: String = value
@@ -64,18 +64,40 @@ pub fn format_money(value: Decimal) -> String {
     format!("{prefix} {},{}", groups.join("."), &decimal_part[..2])
 }
 
-pub fn build_validation_report(metamap: &MetamapSnapshot, core: &CoreSnapshot) -> ValidationReport {
+pub fn build_validation_report(
+    server_validation: &ValidationSnapshot,
+    metamap: &MetamapSnapshot,
+    core: &CoreSnapshot,
+    already_transferred: bool,
+) -> ValidationReport {
     let mut blockers = Vec::new();
-    let warnings = Vec::new();
+    let mut warnings = Vec::new();
+
+    if already_transferred {
+        blockers.push(
+            "La solicitud ya fue registrada como transferida en esta instalacion.".to_owned(),
+        );
+    }
+
+    if !server_validation.has_completed_validation() {
+        blockers.push("No existe validacion MetaMap completed asociada en el server.".to_owned());
+    }
+
+    if server_validation.match_count > 1 {
+        warnings.push(format!(
+            "El server devolvio {} validaciones completed para esta solicitud; se usa la mas reciente.",
+            server_validation.match_count
+        ));
+    }
 
     if metamap.request_number.is_none() {
-        blockers.push("MetaMap no devolvio numero de solicitud.".to_owned());
+        blockers.push("La validacion MetaMap del server no expone numero de solicitud.".to_owned());
     }
     if metamap.document.is_none() {
-        blockers.push("MetaMap no devolvio numero de documento.".to_owned());
+        blockers.push("La validacion MetaMap del server no expone numero de documento.".to_owned());
     }
     if metamap.amount.is_none() {
-        blockers.push("MetaMap no devolvio monto interpretable.".to_owned());
+        blockers.push("La validacion MetaMap del server no expone monto interpretable.".to_owned());
     }
 
     match core.request_status.as_deref() {
@@ -89,6 +111,26 @@ pub fn build_validation_report(metamap: &MetamapSnapshot, core: &CoreSnapshot) -
 
     if core.transfer_cbu.is_none() {
         blockers.push("No existe Prestamo.[CBU transferencia] en el core financiero.".to_owned());
+    }
+
+    if let Some(validation_request_number) = server_validation.request_number.as_deref() {
+        if validation_request_number.trim() != core.request_oid.trim() {
+            blockers.push(format!(
+                "La validacion del server corresponde a la solicitud {}, no a {}.",
+                validation_request_number.trim(),
+                core.request_oid.trim()
+            ));
+        }
+    }
+
+    if let Some(metamap_request_number) = metamap.request_number.as_deref() {
+        if metamap_request_number.trim() != core.request_oid.trim() {
+            blockers.push(format!(
+                "Numero de solicitud inconsistente entre MetaMap ({}) y core ({}).",
+                metamap_request_number.trim(),
+                core.request_oid.trim()
+            ));
+        }
     }
 
     match (

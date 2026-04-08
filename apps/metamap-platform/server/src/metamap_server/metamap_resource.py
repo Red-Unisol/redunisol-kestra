@@ -15,6 +15,8 @@ class ValidationEnrichment:
     loan_number: str | None = None
     amount_raw: str | None = None
     amount_value: str | None = None
+    applicant_name: str | None = None
+    document_number: str | None = None
 
     def merged_with(self, fallback: "ValidationEnrichment") -> "ValidationEnrichment":
         return ValidationEnrichment(
@@ -22,6 +24,8 @@ class ValidationEnrichment:
             loan_number=self.loan_number or fallback.loan_number,
             amount_raw=self.amount_raw or fallback.amount_raw,
             amount_value=self.amount_value or fallback.amount_value,
+            applicant_name=self.applicant_name or fallback.applicant_name,
+            document_number=self.document_number or fallback.document_number,
         )
 
 
@@ -92,6 +96,8 @@ def extract_validation_enrichment(payload: Any) -> ValidationEnrichment:
         loan_number=loan_number,
         amount_raw=amount_raw,
         amount_value=_parse_decimal_string(amount_raw),
+        applicant_name=_extract_name(payload),
+        document_number=_extract_document(payload),
     )
 
 
@@ -116,6 +122,42 @@ def _extract_amount(payload: Any) -> str | None:
     ) or _search_exact(
         payload,
         ["amount", "requestedAmount", "requested_amount", "importeSolicitado"],
+    )
+
+
+def _extract_name(payload: Any) -> str | None:
+    direct_name = _search_exact(
+        payload,
+        ["name", "fullName", "full_name", "applicantName", "applicant_name"],
+    )
+    if direct_name:
+        return direct_name
+    first_name = _search_exact(payload, ["firstName", "first_name"])
+    last_name = _search_exact(payload, ["lastName", "last_name"])
+    if first_name and last_name:
+        return f"{first_name} {last_name}"
+    return first_name or last_name
+
+
+def _extract_document(payload: Any) -> str | None:
+    return _find_labeled_value(
+        payload,
+        ["documento", "numero documento", "dni"],
+    ) or _search_exact(
+        payload,
+        [
+            "documentNumber",
+            "document_number",
+            "documentId",
+            "document_id",
+            "dni",
+            "nationalId",
+            "national_id",
+            "personalNumber",
+        ],
+    ) or _search_key_contains(
+        payload,
+        ["documento", "document number", "document_number", "dni"],
     )
 
 

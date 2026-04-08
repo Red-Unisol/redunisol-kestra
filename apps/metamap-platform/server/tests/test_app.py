@@ -69,6 +69,8 @@ class MetaMapServerApiTests(unittest.TestCase):
             request_number="241325",
             loan_number="1010477",
             amount_raw="123.456,78",
+            applicant_name="Ada Lovelace",
+            document_number="30111222",
         )
         ingest = self._post_metamap_webhook(
             self._metamap_payload(
@@ -96,6 +98,8 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(ingest.json()["validation"]["loan_number"], "1010477")
         self.assertEqual(ingest.json()["validation"]["amount_raw"], "123.456,78")
         self.assertEqual(ingest.json()["validation"]["amount_value"], "123456.78")
+        self.assertEqual(ingest.json()["validation"]["applicant_name"], "Ada Lovelace")
+        self.assertEqual(ingest.json()["validation"]["document_number"], "30111222")
 
         validations = self.client.get(
             "/api/v1/validations",
@@ -110,6 +114,14 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(
             validations.json()["items"][0]["event_count"],
             1,
+        )
+        self.assertEqual(
+            validations.json()["items"][0]["applicant_name"],
+            "Ada Lovelace",
+        )
+        self.assertEqual(
+            validations.json()["items"][0]["document_number"],
+            "30111222",
         )
 
     def test_state_persists_across_app_restarts(self) -> None:
@@ -251,6 +263,30 @@ class MetaMapServerApiTests(unittest.TestCase):
             2,
         )
 
+    def test_get_validation_backfills_missing_enrichment_from_resource(self) -> None:
+        self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_completed",
+                verification_id="verif-backfill",
+            )
+        )
+        self._resource_payloads["verif-backfill"] = self._metamap_resource_payload(
+            request_number="241999",
+            amount_raw="3210,00",
+            applicant_name="Grace Hopper",
+            document_number="27888999",
+        )
+
+        validation = self.client.get(
+            "/api/v1/validations/verif-backfill",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(validation.status_code, 200)
+        self.assertEqual(validation.json()["validation"]["request_number"], "241999")
+        self.assertEqual(validation.json()["validation"]["amount_value"], "3210.00")
+        self.assertEqual(validation.json()["validation"]["applicant_name"], "Grace Hopper")
+        self.assertEqual(validation.json()["validation"]["document_number"], "27888999")
+
     def test_internal_webhook_receipts_endpoint_prunes_logs_older_than_one_week(self) -> None:
         self._post_metamap_webhook(
             self._metamap_payload(
@@ -380,6 +416,8 @@ class MetaMapServerApiTests(unittest.TestCase):
         request_number: str | None = None,
         loan_number: str | None = None,
         amount_raw: str | None = None,
+        applicant_name: str | None = None,
+        document_number: str | None = None,
     ) -> dict:
         fields = {}
         if request_number is not None:
@@ -391,4 +429,12 @@ class MetaMapServerApiTests(unittest.TestCase):
                 "title": "Importe solicitado",
                 "value": amount_raw,
             }
-        return {"steps": [{"fields": fields}]}
+        if document_number is not None:
+            fields["variableKey11"] = {
+                "title": "Documento",
+                "value": document_number,
+            }
+        payload = {"steps": [{"fields": fields}]}
+        if applicant_name is not None:
+            payload["applicantName"] = applicant_name
+        return payload

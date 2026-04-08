@@ -1,10 +1,9 @@
 use anyhow::{Context, Result, anyhow};
 use reqwest::blocking::{Client, Response};
-use serde_json::json;
 
 use crate::{
     config::ServerConfig,
-    models::{CaseActionResponse, QueueResponse},
+    models::{ValidationSearchResponse, ValidationSnapshot},
 };
 
 #[derive(Clone)]
@@ -30,61 +29,46 @@ impl ServerClient {
         })
     }
 
-    pub fn list_transfer_queue(&self) -> Result<QueueResponse> {
+    pub fn find_validation_by_request_number(
+        &self,
+        request_number: &str,
+    ) -> Result<Option<ValidationSnapshot>> {
+        log::debug!(
+            "Buscando validacion completed en server para solicitud {}.",
+            request_number.trim()
+        );
         let response = self.request(
             self.http
-                .get(format!(
-                    "{}/api/v1/queues/transferencias_celesol",
-                    self.base_url
-                ))
-                .header("X-Client-Id", &self.client_id)
-                .header("X-Client-Secret", &self.client_secret),
-        )?;
-        response
-            .json::<QueueResponse>()
-            .context("No se pudo decodificar la respuesta de la cola del server.")
-    }
-
-    pub fn initiate_transfer(&self, case_id: &str, actor: &str) -> Result<CaseActionResponse> {
-        self.post_action(case_id, "transfer_initiated", actor, None)
-    }
-
-    pub fn mark_transfer_submitted(
-        &self,
-        case_id: &str,
-        actor: &str,
-        external_transfer_id: &str,
-    ) -> Result<CaseActionResponse> {
-        self.post_action(
-            case_id,
-            "transfer_submitted",
-            actor,
-            Some(external_transfer_id),
-        )
-    }
-
-    fn post_action(
-        &self,
-        case_id: &str,
-        action: &str,
-        actor: &str,
-        external_transfer_id: Option<&str>,
-    ) -> Result<CaseActionResponse> {
-        let response = self.request(
-            self.http
-                .post(format!("{}/api/v1/cases/{case_id}/actions", self.base_url))
+                .get(format!("{}/api/v1/validations", self.base_url))
                 .header("X-Client-Id", &self.client_id)
                 .header("X-Client-Secret", &self.client_secret)
-                .json(&json!({
-                    "role": "transferencias_celesol",
-                    "action": action,
-                    "actor": actor,
-                    "external_transfer_id": external_transfer_id,
-                })),
+                .query(&[
+                    ("request_number", request_number.trim()),
+                    ("normalized_status", "completed"),
+                    ("limit", "10"),
+                ]),
         )?;
-        response
-            .json::<CaseActionResponse>()
-            .context("No se pudo decodificar la respuesta de accion del server.")
+        let mut payload = response
+            .json::<ValidationSearchResponse>()
+            .context("No se pudo decodificar la respuesta de validaciones del server.")?;
+        if payload.items.is_empty() {
+            log::debug!(
+                "Server no devolvio validacion completed para solicitud {}.",
+                request_number.trim()
+            );
+            return Ok(None);
+        }
+
+        let match_count = payload.items.len();
+        let mut selected = payload.items.remove(0);
+        selected.match_count = match_count;
+        log::debug!(
+            "Server devolvio {} validaciones para solicitud {}. Elegida verification_id={:?}.",
+            match_count,
+            request_number.trim(),
+            selected.verification_id
+        );
+        Ok(Some(selected))
     }
 
     fn request(&self, builder: reqwest::blocking::RequestBuilder) -> Result<Response> {
@@ -96,6 +80,7 @@ impl ServerClient {
         }
         let status = response.status();
         let detail = extract_error_body(response);
+        log::warn!("Server devolvio {status}: {detail}");
         Err(anyhow!("Server devolvio {status}: {detail}"))
     }
 }

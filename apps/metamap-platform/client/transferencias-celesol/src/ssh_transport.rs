@@ -82,6 +82,12 @@ impl SshHttpClient {
             .enable_all()
             .build()
             .context("No se pudo crear el runtime async para SSH.")?;
+        log::debug!(
+            "Transporte SSH Coinag inicializado para {}:{} con user {}.",
+            config.host,
+            config.port,
+            config.user
+        );
         Ok(Self {
             runtime: Arc::new(runtime),
             config: config.clone(),
@@ -92,11 +98,20 @@ impl SshHttpClient {
 
     pub fn execute(&self, request: TransportRequest) -> Result<TransportResponse> {
         let timeout = self.timeout;
-        self.runtime.block_on(async {
+        let method_name = request.method.to_string();
+        let url = request.url.clone();
+        let response = self.runtime.block_on(async {
             tokio::time::timeout(timeout, self.execute_async(request))
                 .await
                 .map_err(|_| anyhow!("Timeout al conectar con Coinag por SSH."))?
-        })
+        })?;
+        log::debug!(
+            "Coinag respondio {} para {} {}.",
+            response.status,
+            method_name,
+            url
+        );
+        Ok(response)
     }
 
     async fn execute_async(&self, request: TransportRequest) -> Result<TransportResponse> {
@@ -109,6 +124,13 @@ impl SshHttpClient {
         let port = url
             .port_or_known_default()
             .ok_or_else(|| anyhow!("No se pudo resolver el puerto para {}", request.url))?;
+        log::debug!(
+            "SSH direct-tcpip hacia {}:{} para {} {}.",
+            host,
+            port,
+            request.method,
+            request.url
+        );
 
         let session = self.connect_session().await?;
         let channel = session
@@ -185,6 +207,12 @@ impl SshHttpClient {
         if !auth_result.success() {
             bail!("La VPS rechazo la autenticacion SSH del cliente.");
         }
+        log::debug!(
+            "SSH autenticado contra {}:{} como {}.",
+            self.config.host,
+            self.config.port,
+            self.config.user
+        );
         Ok(session)
     }
 

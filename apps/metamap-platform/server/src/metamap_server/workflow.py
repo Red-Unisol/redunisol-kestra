@@ -145,6 +145,8 @@ class ValidationRecord:
     loan_number: str | None = None
     amount_raw: str | None = None
     amount_value: str | None = None
+    applicant_name: str | None = None
+    document_number: str | None = None
     metadata: dict = field(default_factory=dict)
     latest_payload: dict = field(default_factory=dict)
     first_received_at: str = field(default_factory=_utc_now)
@@ -165,6 +167,8 @@ class ValidationRecord:
             "loan_number": self.loan_number,
             "amount_raw": self.amount_raw,
             "amount_value": self.amount_value,
+            "applicant_name": self.applicant_name,
+            "document_number": self.document_number,
             "metadata": self.metadata,
             "first_received_at": self.first_received_at,
             "last_received_at": self.last_received_at,

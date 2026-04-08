@@ -1,10 +1,13 @@
-use transferencias_celesol::{app::TransferenciasApp, config::AppConfig};
+use transferencias_celesol::{app::TransferenciasApp, config::AppConfig, logging};
 
 fn main() -> eframe::Result<()> {
-    env_logger::init();
-    let config = match AppConfig::from_env() {
+    if let Err(error) = logging::init_logging() {
+        eprintln!("No se pudo inicializar logging: {error}");
+    }
+    let config = match AppConfig::load() {
         Ok(config) => config,
         Err(error) => {
+            log::error!("Error de configuracion: {error:#}");
             eprintln!("Error de configuracion: {error}");
             std::process::exit(1);
         }
@@ -13,6 +16,7 @@ fn main() -> eframe::Result<()> {
     let app = match TransferenciasApp::new(config) {
         Ok(app) => app,
         Err(error) => {
+            log::error!("No se pudo iniciar la app: {error:#}");
             eprintln!("No se pudo iniciar la app: {error}");
             std::process::exit(1);
         }
