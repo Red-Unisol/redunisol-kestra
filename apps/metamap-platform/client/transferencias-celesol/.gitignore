@@ -1,5 +1,6 @@
 target/
 receipts/
+preview/
 *.local.env
 *.env
 transferencias.env

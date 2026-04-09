@@ -25,6 +25,8 @@ pub struct ValidationSnapshot {
     pub loan_number: Option<String>,
     pub amount_raw: Option<String>,
     pub amount_value: Option<String>,
+    pub requested_amount_raw: Option<String>,
+    pub requested_amount_value: Option<String>,
     pub applicant_name: Option<String>,
     pub document_number: Option<String>,
     #[serde(default)]
@@ -36,6 +38,7 @@ pub struct ValidationSnapshot {
 #[derive(Clone, Debug, Default)]
 pub struct CoreSnapshot {
     pub request_oid: String,
+    pub request_name: Option<String>,
     pub request_status: Option<String>,
     pub request_amount_raw: Option<String>,
     pub request_amount: Option<Decimal>,
@@ -81,6 +84,17 @@ pub struct HydratedCase {
 }
 
 impl ValidationSnapshot {
+    pub fn requested_amount(&self) -> Option<Decimal> {
+        self.requested_amount_value
+            .as_deref()
+            .and_then(crate::validation::parse_decimal)
+            .or_else(|| {
+                self.requested_amount_raw
+                    .as_deref()
+                    .and_then(crate::validation::parse_decimal)
+            })
+    }
+
     pub fn amount(&self) -> Option<Decimal> {
         self.amount_value
             .as_deref()
@@ -106,10 +120,12 @@ impl ValidationSnapshot {
             document: self.document_number.clone(),
             request_number: self.request_number.clone(),
             amount_raw: self
-                .amount_raw
+                .requested_amount_raw
                 .clone()
+                .or_else(|| self.requested_amount_value.clone())
+                .or_else(|| self.amount_raw.clone())
                 .or_else(|| self.amount_value.clone()),
-            amount: self.amount(),
+            amount: self.requested_amount().or_else(|| self.amount()),
         }
     }
 }
@@ -120,6 +136,12 @@ impl HydratedCase {
     }
 
     pub fn display_name(&self) -> String {
+        if let Some(name) = self.core.request_name.as_deref() {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_owned();
+            }
+        }
         let trimmed = self.metamap.name.trim();
         if !trimmed.is_empty() {
             return trimmed.to_owned();
@@ -142,9 +164,12 @@ impl HydratedCase {
             .or_else(|| self.metamap.amount_raw.clone())
             .or_else(|| {
                 self.server_validation
-                    .amount()
+                    .requested_amount()
+                    .or_else(|| self.server_validation.amount())
                     .map(crate::validation::format_money)
             })
+            .or_else(|| self.server_validation.requested_amount_raw.clone())
+            .or_else(|| self.server_validation.requested_amount_value.clone())
             .or_else(|| self.server_validation.amount_raw.clone())
             .or_else(|| self.server_validation.amount_value.clone())
             .unwrap_or_else(|| "N/D".to_owned())
