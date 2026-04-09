@@ -9,6 +9,8 @@ use chrono::Local;
 use env_logger::{Builder, Target, WriteStyle};
 use log::LevelFilter;
 
+use crate::config;
+
 pub fn init_logging() -> Result<()> {
     let mut builder = Builder::new();
     builder.write_style(WriteStyle::Never);
@@ -60,7 +62,9 @@ fn resolve_debug_log_path() -> PathBuf {
     {
         return path;
     }
-    if let Some(path) = read_env_file_value("TRANSFERENCIAS_DEBUG_LOG_PATH").map(PathBuf::from) {
+    if let Some(path) =
+        config::read_config_file_value("TRANSFERENCIAS_DEBUG_LOG_PATH").map(PathBuf::from)
+    {
         return path;
     }
     default_base_dir()
@@ -85,64 +89,4 @@ fn default_base_dir() -> PathBuf {
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .or_else(|| env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."))
-}
-
-fn read_env_file_value(name: &str) -> Option<String> {
-    let path = resolve_config_path().ok().flatten()?;
-    let raw = fs::read_to_string(path).ok()?;
-    raw.lines().find_map(|raw_line| {
-        let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            return None;
-        }
-        let (key, value) = line.split_once('=')?;
-        if key.trim() != name {
-            return None;
-        }
-        let value = parse_env_value(value.trim());
-        (!value.is_empty()).then_some(value)
-    })
-}
-
-fn resolve_config_path() -> Result<Option<PathBuf>> {
-    if let Some(path) = env::var("TRANSFERENCIAS_CONFIG_PATH")
-        .ok()
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty())
-    {
-        let path = PathBuf::from(path);
-        if !path.exists() {
-            return Ok(None);
-        }
-        return Ok(Some(path));
-    }
-
-    let exe_dir = env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(Path::to_path_buf));
-    let cwd = env::current_dir().ok();
-
-    let mut candidates = Vec::new();
-    if let Some(exe_dir) = exe_dir {
-        candidates.push(exe_dir.join("transferencias.env"));
-    }
-    if let Some(cwd) = cwd {
-        let candidate = cwd.join("transferencias.env");
-        if !candidates.iter().any(|existing| existing == &candidate) {
-            candidates.push(candidate);
-        }
-    }
-
-    Ok(candidates.into_iter().find(|path| path.exists()))
-}
-
-fn parse_env_value(raw: &str) -> String {
-    if raw.len() >= 2 {
-        if (raw.starts_with('"') && raw.ends_with('"'))
-            || (raw.starts_with('\'') && raw.ends_with('\''))
-        {
-            return raw[1..raw.len() - 1].to_owned();
-        }
-    }
-    raw.to_owned()
 }

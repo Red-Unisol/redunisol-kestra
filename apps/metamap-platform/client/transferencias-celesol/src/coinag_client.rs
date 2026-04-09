@@ -1,6 +1,4 @@
 use std::{
-    fs,
-    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -316,7 +314,9 @@ impl CoinagClient {
     }
 
     #[cfg(debug_assertions)]
-    fn write_smoke_transfer_payload(&self, payload: &Value) -> Result<PathBuf> {
+    fn write_smoke_transfer_payload(&self, payload: &Value) -> Result<std::path::PathBuf> {
+        use std::fs;
+
         fs::create_dir_all(&self.config.smoke_transfers_dir).with_context(|| {
             format!(
                 "No se pudo crear la carpeta de smoke {:?}",
@@ -353,14 +353,8 @@ impl CoinagClient {
 
     pub fn extract_external_transfer_id(response: &Value) -> Option<String> {
         response
-            .get("response")
-            .and_then(|response| response.get("debito"))
-            .and_then(|debito| {
-                debito
-                    .get("idTrx")
-                    .or_else(|| debito.get("id"))
-                    .or_else(|| debito.get("idTrxOriginal"))
-            })
+            .get("debito")
+            .and_then(|debito| debito.get("idTrx").or_else(|| debito.get("id")))
             .and_then(value_to_string)
     }
 
@@ -530,8 +524,11 @@ impl CoinagClient {
     ) -> Result<String> {
         let empresa = normalize_digits(self.config.id_empresa.as_str());
         if let Some(empresa) = empresa {
-            let next = read_and_increment_sequence(&self.config.id_seq_path)?;
-            return Ok(format!("{empresa}{next:015}"));
+            let request_number = request_number.and_then(normalize_digits).ok_or_else(|| {
+                anyhow!("No se pudo generar idTrxCliente: falta numero de solicitud numerico.")
+            })?;
+            let suffix = build_request_based_transaction_suffix(&request_number)?;
+            return Ok(format!("{empresa}{suffix}"));
         }
         let request = request_number
             .and_then(normalize_digits)
@@ -663,31 +660,6 @@ fn value_to_string(value: &Value) -> Option<String> {
     }
 }
 
-fn read_and_increment_sequence(path: &Path) -> Result<u64> {
-    let mut next = 1;
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent).with_context(|| {
-                format!("No se pudo crear la carpeta del secuencial {:?}", parent)
-            })?;
-        }
-    }
-    if path.exists() {
-        let raw_value = fs::read_to_string(path)
-            .with_context(|| format!("No se pudo leer el secuencial {:?}", path))?;
-        let raw_value = raw_value.trim();
-        if !raw_value.is_empty() {
-            next = raw_value
-                .parse::<u64>()
-                .with_context(|| format!("Secuencial invalido en {:?}", path))?
-                + 1;
-        }
-    }
-    fs::write(path, next.to_string())
-        .with_context(|| format!("No se pudo persistir el secuencial {:?}", path))?;
-    Ok(next)
-}
-
 fn mask_value(value: &str, visible_suffix: usize) -> String {
     let trimmed = value.trim();
     if trimmed.len() <= visible_suffix {
@@ -696,6 +668,7 @@ fn mask_value(value: &str, visible_suffix: usize) -> String {
     format!("***{}", &trimmed[trimmed.len() - visible_suffix..])
 }
 
+#[cfg(debug_assertions)]
 fn sanitize_filename(value: &str) -> String {
     let sanitized = value
         .chars()
@@ -708,4 +681,40 @@ fn sanitize_filename(value: &str) -> String {
         })
         .collect::<String>();
     sanitized.trim_matches('_').to_owned()
+}
+
+fn build_request_based_transaction_suffix(request_number: &str) -> Result<String> {
+    let request_number = request_number.trim();
+    if request_number.is_empty() {
+        return Err(anyhow!(
+            "No se pudo generar idTrxCliente: numero de solicitud vacio."
+        ));
+    }
+
+    let suffix = format!("{request_number}0");
+    if suffix.len() > 15 {
+        return Err(anyhow!(
+            "No se pudo generar idTrxCliente: la solicitud {request_number} excede los 15 digitos requeridos."
+        ));
+    }
+
+    Ok(format!("{suffix:0>15}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_request_based_transaction_suffix;
+
+    #[test]
+    fn request_based_transaction_suffix_uses_request_number_with_trailing_zero() {
+        let suffix = build_request_based_transaction_suffix("234567").unwrap();
+        assert_eq!(suffix, "000000002345670");
+    }
+
+    #[test]
+    fn request_based_transaction_suffix_rejects_more_than_fifteen_digits() {
+        let error = build_request_based_transaction_suffix("123456789012345")
+            .expect_err("expected suffix generation to fail");
+        assert!(error.to_string().contains("excede los 15 digitos"));
+    }
 }

@@ -9,6 +9,7 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompletedTransferRecord {
@@ -16,6 +17,7 @@ pub struct CompletedTransferRecord {
     pub timestamp: String,
     pub operator_name: String,
     pub external_transfer_id: Option<String>,
+    pub coinag_response: Option<Value>,
 }
 
 pub struct CompletedTransferLog {
@@ -59,6 +61,7 @@ impl CompletedTransferLog {
         request_oid: &str,
         operator_name: &str,
         external_transfer_id: Option<&str>,
+        coinag_response: Option<&Value>,
     ) -> Result<CompletedTransferRecord> {
         let request_oid = normalize_request_oid(request_oid);
         let mut state = self
@@ -78,6 +81,7 @@ impl CompletedTransferLog {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .map(str::to_owned),
+            coinag_response: coinag_response.cloned(),
         };
         state.records.insert(request_oid, record.clone());
         append_record(&self.path, &record)?;

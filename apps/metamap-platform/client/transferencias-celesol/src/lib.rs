@@ -6,6 +6,7 @@ pub mod core_client;
 pub mod logging;
 pub mod models;
 pub mod receipt;
+pub mod secure_config;
 pub mod server_client;
 pub mod ssh_transport;
 pub mod validation;

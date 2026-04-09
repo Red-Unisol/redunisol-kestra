@@ -1,9 +1,11 @@
 target/
 receipts/
+receipts-example/
 preview/
 *.local.env
 *.env
 transferencias.env
+transferencias.env.enc
 transferencias_coinag_seq.txt
 smoke-transfers/
 lineas_habilitadas

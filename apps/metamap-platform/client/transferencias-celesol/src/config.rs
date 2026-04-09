@@ -7,6 +7,8 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 
+use crate::secure_config;
+
 #[derive(Clone)]
 pub struct AppConfig {
     pub server: ServerConfig,
@@ -211,7 +213,12 @@ impl CoinagConfig {
 
 impl AppConfig {
     pub fn load() -> Result<Self> {
-        let loaded = LoadedConfigValues::load()?;
+        let loaded = LoadedConfigValues::load(None)?;
+        Self::from_values(&loaded.values, &loaded.base_dir)
+    }
+
+    pub fn load_with_passphrase(passphrase: Option<&str>) -> Result<Self> {
+        let loaded = LoadedConfigValues::load(passphrase)?;
         Self::from_values(&loaded.values, &loaded.base_dir)
     }
 
@@ -286,7 +293,7 @@ struct LoadedConfigValues {
 }
 
 impl LoadedConfigValues {
-    fn load() -> Result<Self> {
+    fn load(passphrase_override: Option<&str>) -> Result<Self> {
         let config_path = resolve_config_path()?;
         let base_dir = config_path
             .as_deref()
@@ -295,7 +302,7 @@ impl LoadedConfigValues {
             .unwrap_or_else(default_base_dir);
 
         let mut values = if let Some(path) = config_path.as_deref() {
-            parse_env_file(path)?
+            parse_env_file(path, passphrase_override)?
         } else {
             HashMap::new()
         };
@@ -309,6 +316,10 @@ impl LoadedConfigValues {
 
         Ok(Self { values, base_dir })
     }
+}
+
+pub fn resolve_runtime_config_path() -> Result<Option<PathBuf>> {
+    resolve_config_path()
 }
 
 fn resolve_config_path() -> Result<Option<PathBuf>> {
@@ -334,21 +345,24 @@ fn resolve_config_path() -> Result<Option<PathBuf>> {
 
     let mut candidates = Vec::new();
     if let Some(exe_dir) = exe_dir {
-        candidates.push(exe_dir.join("transferencias.env"));
+        for candidate_name in default_config_candidates() {
+            candidates.push(exe_dir.join(candidate_name));
+        }
     }
     if let Some(cwd) = cwd {
-        let candidate = cwd.join("transferencias.env");
-        if !candidates.iter().any(|existing| existing == &candidate) {
-            candidates.push(candidate);
+        for candidate_name in default_config_candidates() {
+            let candidate = cwd.join(candidate_name);
+            if !candidates.iter().any(|existing| existing == &candidate) {
+                candidates.push(candidate);
+            }
         }
     }
 
     Ok(candidates.into_iter().find(|path| path.exists()))
 }
 
-fn parse_env_file(path: &Path) -> Result<ConfigValues> {
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("No se pudo leer el archivo de configuracion {:?}", path))?;
+fn parse_env_file(path: &Path, passphrase_override: Option<&str>) -> Result<ConfigValues> {
+    let raw = read_config_text(path, passphrase_override)?;
     let mut values = HashMap::new();
     for (index, raw_line) in raw.lines().enumerate() {
         let line = if index == 0 {
@@ -380,6 +394,12 @@ fn parse_env_file(path: &Path) -> Result<ConfigValues> {
         values.insert(key.to_owned(), value);
     }
     Ok(values)
+}
+
+pub fn read_config_file_value(name: &str) -> Option<String> {
+    let path = resolve_config_path().ok().flatten()?;
+    let values = parse_env_file(&path, None).ok()?;
+    optional_value(&values, name)
 }
 
 fn load_enabled_credit_lines(
@@ -426,6 +446,14 @@ fn default_base_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+fn default_config_candidates() -> &'static [&'static str] {
+    if cfg!(debug_assertions) {
+        &["transferencias.env", "transferencias.env.enc"]
+    } else {
+        &["transferencias.env.enc"]
+    }
+}
+
 fn resolve_enabled_lines_path(values: &ConfigValues, base_dir: &Path) -> PathBuf {
     if let Some(custom_path) = optional_value(values, "TRANSFERENCIAS_LINEAS_HABILITADAS_PATH") {
         return resolve_path(base_dir, Some(custom_path.as_str()), "lineas_habilitadas");
@@ -461,6 +489,43 @@ const DEFAULT_ENABLED_CREDIT_LINES: &[&str] = &[
     "MUNIC. CARLOS PAZ PERMAN SIT 1",
 ];
 
+fn read_config_text(path: &Path, passphrase_override: Option<&str>) -> Result<String> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("No se pudo leer el archivo de configuracion {:?}", path))?;
+
+    if is_encrypted_config_path(path) {
+        let passphrase = read_config_passphrase(passphrase_override)?;
+        return secure_config::decrypt_config_text(&raw, &passphrase)
+            .with_context(|| format!("No se pudo desencriptar {:?}", path));
+    }
+
+    if cfg!(not(debug_assertions)) {
+        return Err(anyhow!(
+            "En builds no-debug la configuracion desde archivo debe estar encriptada (.enc)."
+        ));
+    }
+
+    Ok(raw)
+}
+
+fn read_config_passphrase(passphrase_override: Option<&str>) -> Result<String> {
+    if let Some(passphrase) = passphrase_override
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(passphrase.to_owned());
+    }
+    optional_value_from_env("TRANSFERENCIAS_CONFIG_PASSPHRASE").ok_or_else(|| {
+        anyhow!("Falta TRANSFERENCIAS_CONFIG_PASSPHRASE para desencriptar la configuracion.")
+    })
+}
+
+pub fn is_encrypted_config_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("enc"))
+}
+
 fn resolve_path(base_dir: &Path, value: Option<&str>, default_name: &str) -> PathBuf {
     match value {
         Some(value) if !value.trim().is_empty() => {
@@ -490,6 +555,13 @@ fn required_value(values: &ConfigValues, name: &str) -> Result<String> {
 fn optional_value(values: &ConfigValues, name: &str) -> Option<String> {
     values
         .get(name)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn optional_value_from_env(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
 }

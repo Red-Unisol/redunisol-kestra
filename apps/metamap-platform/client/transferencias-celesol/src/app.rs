@@ -1005,6 +1005,7 @@ impl AppServices {
             updated.request_oid(),
             &self.operator_name,
             external_transfer_id.as_deref(),
+            Some(&transfer_response),
         );
         updated.already_transferred = self
             .completed_transfers
