@@ -4,9 +4,9 @@
 use App\Models\Page;
 use Inertia\Inertia;
 
-Route::get('/{slug?}', function ($slug = '/') {
+Route::get('/{slug?}', function ($slug = null) {
 
-    $slug = $slug === '/' ? '/' : $slug;
+    $slug = $slug ? '/' . ltrim($slug, '/') : '/';
 
     $page = Page::where('slug', $slug)->firstOrFail();
 
