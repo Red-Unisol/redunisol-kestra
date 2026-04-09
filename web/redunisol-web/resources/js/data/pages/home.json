@@ -14,15 +14,18 @@
         "items": [
             {
                 "text": "Jubilados Provinciales",
-                "icon": "eyeglasses"
+                "icon": "eyeglasses",
+                "href": "/prestamos-para-jubilados"
             },
             {
                 "text": "Empleados Públicos Provinciales",
-                "icon": "buildings"
+                "icon": "buildings",
+                "href": "/prestamos-para-empleados-publicos"
             },
             {
                 "text": "Policías Provinciales",
-                "icon": "police-car"
+                "icon": "police-car",
+                "href": "/prestamos-para-policias"
             },
             {
                 "text": "Docentes Provinciales",

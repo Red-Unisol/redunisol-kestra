@@ -103,6 +103,12 @@ class PageResource extends Resource
                                             'hand-heart'          => 'Mano corazón (Pensionados)',
                                         ])
                                         ->searchable(),
+
+                                    TextInput::make('href')
+                                        ->label('Enlace (href)')
+                                        ->helperText('Ej: /prestamos-para-policias — dejalo vacío si todavía no tiene página.')
+                                        ->url()
+                                        ->nullable(),
                                 ])
                                 ->defaultItems(1)
                                 ->reorderable()
