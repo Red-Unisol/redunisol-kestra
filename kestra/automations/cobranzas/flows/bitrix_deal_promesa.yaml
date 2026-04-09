@@ -1,0 +1,61 @@
+id: bitrix_deal_promesa
+namespace: redunisol
+
+description: Recibe webhooks de Bitrix por cambio de estado, valida promesa y envia plantilla por Edna.
+
+labels:
+  env: prod
+  team: redunisol
+  kind: webhook
+  domain: cobranzas
+  integration: bitrix24
+
+tasks:
+  - id: procesar_webhook
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+      include:
+        - bitrix_deal_promesa/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: ghcr.io/kestra-io/pydata:latest
+    beforeCommands:
+      - pip install kestra requests > /dev/null
+    env:
+      TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
+      BITRIX24_BASE_URL: "{{ envs.bitrix24_base_url }}"
+      BITRIX24_TIMEOUT_SECONDS: "{{ envs.bitrix24_timeout_seconds }}"
+      BITRIX24_WEBHOOK_PATH: "{{ secret('BITRIX24_WEBHOOK_PATH') }}"
+      BITRIX24_APP_TOKEN: "{{ secret('BITRIX24_COBRANZAS_PROMESA_APP_TOKEN') }}"
+      EDNA_API_KEY: "{{ secret('EDNA_API_KEY') }}"
+    commands:
+      - python -m bitrix_deal_promesa.kestra_webhook_entrypoint
+
+outputs:
+  - id: ok
+    type: BOOLEAN
+    value: "{{ outputs.procesar_webhook.vars.ok }}"
+  - id: action
+    type: STRING
+    value: "{{ outputs.procesar_webhook.vars.action }}"
+  - id: reason
+    type: STRING
+    value: "{{ outputs.procesar_webhook.vars.reason }}"
+  - id: scheduled_for
+    type: STRING
+    value: "{{ outputs.procesar_webhook.vars.scheduled_for }}"
+  - id: deal_id
+    type: STRING
+    value: "{{ outputs.procesar_webhook.vars.deal_id }}"
+  - id: edna_status
+    type: STRING
+    value: "{{ outputs.procesar_webhook.vars.edna_status }}"
+
+triggers:
+  - id: webhook
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "{{ secret('BITRIX24_COBRANZAS_PROMESA_WEBHOOK_KEY') }}"
+    wait: true
+    returnOutputs: true
+    responseContentType: application/json

@@ -38,6 +38,10 @@ Environment recomendado para esos secrets:
 
 - `vps-infra`
 
+El workflow `Validate MetaMap Server` tambien toma `RUNTIME_ENV_KEY`
+desde ese mismo environment para validar los runtime env cifrados de
+`apps/metamap-platform/server/deploy/`.
+
 ### 2. Configuracion de runtime dentro de Kestra
 
 Se usa cuando un flow necesita datos de configuracion o secretos al ejecutarse.
@@ -158,6 +162,9 @@ Archivos concretos usados en esta repo:
 - plaintext local no versionado: `web/herramientas/deploy/herramientas.dev.env`
 - plaintext local no versionado: `web/herramientas/deploy/herramientas.prod.env`
 - archivos cifrados versionados: `web/herramientas/deploy/herramientas.dev.env.enc` y `web/herramientas/deploy/herramientas.prod.env.enc`
+- plaintext local no versionado: `apps/metamap-platform/server/deploy/metamap-platform-server.dev.env`
+- plaintext local no versionado: `apps/metamap-platform/server/deploy/metamap-platform-server.prod.env`
+- archivos cifrados versionados: `apps/metamap-platform/server/deploy/metamap-platform-server.dev.env.enc` y `apps/metamap-platform/server/deploy/metamap-platform-server.prod.env.enc`
 
 ## Tool Local Para Cifrar Y Descifrar
 
