@@ -274,6 +274,61 @@ class MetaMapServerApiTests(unittest.TestCase):
             2,
         )
 
+    def test_completed_validation_remains_terminal_after_non_terminal_event(self) -> None:
+        completed = self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_completed",
+                verification_id="verif-terminal",
+                timestamp="2026-04-07T15:00:00.000Z",
+            )
+        )
+        self.assertEqual(completed.status_code, 200)
+        self.assertEqual(completed.json()["normalized_status"], "completed")
+
+        later_event = self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_inputs_completed",
+                verification_id="verif-terminal",
+                timestamp="2026-04-07T15:01:00.000Z",
+            )
+        )
+        self.assertEqual(later_event.status_code, 200)
+        self.assertEqual(later_event.json()["normalized_status"], "completed")
+        self.assertEqual(
+            later_event.json()["validation"]["normalized_status"],
+            "completed",
+        )
+        self.assertEqual(
+            later_event.json()["validation"]["latest_event_name"],
+            "verification_completed",
+        )
+        self.assertEqual(
+            later_event.json()["validation"]["latest_event_timestamp"],
+            "2026-04-07T15:00:00.000Z",
+        )
+        self.assertEqual(
+            later_event.json()["validation"]["completed_at"],
+            "2026-04-07T15:00:00.000Z",
+        )
+        self.assertEqual(
+            later_event.json()["validation"]["event_count"],
+            2,
+        )
+
+        validation = self.client.get(
+            "/api/v1/validations/verif-terminal",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(validation.status_code, 200)
+        self.assertEqual(
+            validation.json()["validation"]["normalized_status"],
+            "completed",
+        )
+        self.assertEqual(
+            validation.json()["validation"]["latest_event_name"],
+            "verification_completed",
+        )
+
     def test_get_validation_backfills_missing_enrichment_from_resource(self) -> None:
         self._post_metamap_webhook(
             self._metamap_payload(

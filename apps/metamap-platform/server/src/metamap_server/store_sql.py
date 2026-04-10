@@ -202,8 +202,6 @@ class SqlValidationStore:
                 )
                 session.add(row)
             else:
-                row.latest_event_name = normalized_event_name
-                row.normalized_status = normalized_status.value
                 row.resource_url = resource_url or row.resource_url
                 row.flow_id = flow_id or row.flow_id
                 row.user_id = resolved_user_id or row.user_id
@@ -219,11 +217,17 @@ class SqlValidationStore:
                 )
                 row.applicant_name = applicant_name or row.applicant_name
                 row.document_number = document_number or row.document_number
-                row.metadata_json = metadata or row.metadata_json
-                row.latest_payload = payload
                 row.last_received_at = now
-                row.latest_event_timestamp = event_timestamp or row.latest_event_timestamp
                 row.event_count += 1
+                was_completed = row.normalized_status == ValidationStatus.COMPLETED.value
+                if not was_completed or normalized_status == ValidationStatus.COMPLETED:
+                    row.latest_event_name = normalized_event_name
+                    row.normalized_status = normalized_status.value
+                    row.metadata_json = metadata or row.metadata_json
+                    row.latest_payload = payload
+                    row.latest_event_timestamp = (
+                        event_timestamp or row.latest_event_timestamp
+                    )
                 if normalized_status == ValidationStatus.COMPLETED:
                     row.completed_at = event_timestamp or now
             session.commit()

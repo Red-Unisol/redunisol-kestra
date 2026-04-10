@@ -249,7 +249,9 @@ def create_app(
         return {
             "processing_status": processing_status,
             "event_name": event_name,
-            "normalized_status": normalized_status,
+            "normalized_status": (
+                validation.normalized_status.value if validation else normalized_status
+            ),
             "verification_id": verification_id,
             "resource_url": resource_url,
             "validation": validation.to_dict(include_payload=True) if validation else None,
