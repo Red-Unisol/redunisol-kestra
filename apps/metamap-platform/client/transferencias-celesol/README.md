@@ -10,11 +10,12 @@ Cliente desktop en Rust para operar solicitudes del core financiero en estado `A
 - consumo de datos MetaMap ya enriquecidos por `metamap-platform/server`
 - validaciones bloqueantes de:
   - solicitud en `A Transferir`
-  - validacion MetaMap `completed` disponible en el server
   - `Prestamo.[CBU transferencia]`
+  - titularidad Coinag via CUIL/CUIT
+- validacion MetaMap faltante tratada como advertencia con confirmacion explicita al transferir
+- si existe validacion MetaMap `completed`, siguen aplicando los cruces bloqueantes de:
   - documento MetaMap vs core
   - monto exacto MetaMap vs core
-  - titularidad Coinag via CUIL/CUIT
 - barrera local anti reenvio por `request_oid` en archivo persistido
 - envio a Coinag si el runtime esta configurado
 - generacion de comprobante PDF simple

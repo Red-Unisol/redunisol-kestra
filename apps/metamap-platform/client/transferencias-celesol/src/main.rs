@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use eframe::egui::{self, Key, RichText, TextEdit, ViewportCommand};
 use transferencias_celesol::{
+    APP_NAME_WITH_TAG,
     app::TransferenciasApp,
     config::{self, AppConfig},
     logging,
@@ -32,14 +33,14 @@ fn main() -> eframe::Result<()> {
 
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("Transferencias Celesol")
+            .with_title(APP_NAME_WITH_TAG)
             .with_inner_size([1500.0, 920.0])
             .with_min_inner_size([1200.0, 700.0]),
         ..Default::default()
     };
 
     eframe::run_native(
-        "Transferencias Celesol",
+        APP_NAME_WITH_TAG,
         native_options,
         Box::new(move |_creation_context| Ok(Box::new(app))),
     )

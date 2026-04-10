@@ -72,6 +72,7 @@ pub fn build_validation_report(
 ) -> ValidationReport {
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
+    let has_metamap_validation = server_validation.has_completed_validation();
 
     if already_transferred {
         blockers.push(
@@ -79,25 +80,30 @@ pub fn build_validation_report(
         );
     }
 
-    if !server_validation.has_completed_validation() {
-        blockers.push("No existe validacion MetaMap completed asociada en el server.".to_owned());
+    if !has_metamap_validation {
+        warnings.push("No existe validacion MetaMap completed asociada en el server.".to_owned());
     }
 
-    if server_validation.match_count > 1 {
+    if has_metamap_validation && server_validation.match_count > 1 {
         warnings.push(format!(
             "El server devolvio {} validaciones completed para esta solicitud; se usa la mas reciente.",
             server_validation.match_count
         ));
     }
 
-    if metamap.request_number.is_none() {
-        blockers.push("La validacion MetaMap del server no expone numero de solicitud.".to_owned());
-    }
-    if metamap.document.is_none() {
-        blockers.push("La validacion MetaMap del server no expone numero de documento.".to_owned());
-    }
-    if metamap.amount.is_none() {
-        blockers.push("La validacion MetaMap del server no expone monto interpretable.".to_owned());
+    if has_metamap_validation {
+        if metamap.request_number.is_none() {
+            blockers
+                .push("La validacion MetaMap del server no expone numero de solicitud.".to_owned());
+        }
+        if metamap.document.is_none() {
+            blockers
+                .push("La validacion MetaMap del server no expone numero de documento.".to_owned());
+        }
+        if metamap.amount.is_none() {
+            blockers
+                .push("La validacion MetaMap del server no expone monto interpretable.".to_owned());
+        }
     }
 
     match core.request_status.as_deref() {
@@ -113,46 +119,49 @@ pub fn build_validation_report(
         blockers.push("No existe Prestamo.[CBU transferencia] en el core financiero.".to_owned());
     }
 
-    if let Some(validation_request_number) = server_validation.request_number.as_deref() {
-        if validation_request_number.trim() != core.request_oid.trim() {
-            blockers.push(format!(
-                "La validacion del server corresponde a la solicitud {}, no a {}.",
-                validation_request_number.trim(),
-                core.request_oid.trim()
-            ));
+    if has_metamap_validation {
+        if let Some(validation_request_number) = server_validation.request_number.as_deref() {
+            if validation_request_number.trim() != core.request_oid.trim() {
+                blockers.push(format!(
+                    "La validacion del server corresponde a la solicitud {}, no a {}.",
+                    validation_request_number.trim(),
+                    core.request_oid.trim()
+                ));
+            }
         }
-    }
 
-    if let Some(metamap_request_number) = metamap.request_number.as_deref() {
-        if metamap_request_number.trim() != core.request_oid.trim() {
-            blockers.push(format!(
-                "Numero de solicitud inconsistente entre MetaMap ({}) y core ({}).",
-                metamap_request_number.trim(),
-                core.request_oid.trim()
-            ));
+        if let Some(metamap_request_number) = metamap.request_number.as_deref() {
+            if metamap_request_number.trim() != core.request_oid.trim() {
+                blockers.push(format!(
+                    "Numero de solicitud inconsistente entre MetaMap ({}) y core ({}).",
+                    metamap_request_number.trim(),
+                    core.request_oid.trim()
+                ));
+            }
         }
-    }
 
-    match (
-        metamap.document.as_deref().and_then(normalize_digits),
-        core.request_document.as_deref().and_then(normalize_digits),
-    ) {
-        (Some(metamap_document), Some(core_document)) if metamap_document == core_document => {}
-        (Some(metamap_document), Some(core_document)) => blockers.push(format!(
-            "Documento no coincide entre MetaMap ({metamap_document}) y core ({core_document})."
-        )),
-        _ => blockers
-            .push("No se pudo validar el documento entre MetaMap y core financiero.".to_owned()),
-    }
+        match (
+            metamap.document.as_deref().and_then(normalize_digits),
+            core.request_document.as_deref().and_then(normalize_digits),
+        ) {
+            (Some(metamap_document), Some(core_document)) if metamap_document == core_document => {}
+            (Some(metamap_document), Some(core_document)) => blockers.push(format!(
+                "Documento no coincide entre MetaMap ({metamap_document}) y core ({core_document})."
+            )),
+            _ => blockers.push(
+                "No se pudo validar el documento entre MetaMap y core financiero.".to_owned(),
+            ),
+        }
 
-    match (metamap.amount, core.request_amount) {
-        (Some(metamap_amount), Some(core_amount)) if metamap_amount == core_amount => {}
-        (Some(metamap_amount), Some(core_amount)) => blockers.push(format!(
-            "Monto no coincide entre MetaMap ({}) y core ({}).",
-            format_money(metamap_amount),
-            format_money(core_amount),
-        )),
-        _ => blockers.push("No se pudo validar el monto contra el core financiero.".to_owned()),
+        match (metamap.amount, core.request_amount) {
+            (Some(metamap_amount), Some(core_amount)) if metamap_amount == core_amount => {}
+            (Some(metamap_amount), Some(core_amount)) => blockers.push(format!(
+                "Monto no coincide entre MetaMap ({}) y core ({}).",
+                format_money(metamap_amount),
+                format_money(core_amount),
+            )),
+            _ => blockers.push("No se pudo validar el monto contra el core financiero.".to_owned()),
+        }
     }
 
     let document_cuil = core.document_cuil.as_deref().and_then(normalize_digits);
@@ -189,5 +198,128 @@ pub fn build_validation_report(
         disabled: false,
         blockers,
         warnings,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rust_decimal::Decimal;
+
+    use super::build_validation_report;
+    use crate::models::{CoreSnapshot, MetamapSnapshot, ValidationSnapshot};
+
+    fn valid_core_snapshot() -> CoreSnapshot {
+        CoreSnapshot {
+            request_oid: "123".to_owned(),
+            request_status: Some("A Transferir".to_owned()),
+            request_amount: Some(Decimal::new(1000, 0)),
+            request_document: Some("30111222".to_owned()),
+            request_cuil: Some("20-30111222-3".to_owned()),
+            document_cuil: Some("20-30111222-3".to_owned()),
+            transfer_cbu: Some("2850590940090418135201".to_owned()),
+            coinag_cuil: Some("20-30111222-3".to_owned()),
+            ..Default::default()
+        }
+    }
+
+    fn completed_validation() -> ValidationSnapshot {
+        ValidationSnapshot {
+            verification_id: Some("mm-123".to_owned()),
+            normalized_status: Some("completed".to_owned()),
+            request_number: Some("123".to_owned()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn missing_metamap_is_only_a_warning_when_other_checks_pass() {
+        let report = build_validation_report(
+            &ValidationSnapshot::default(),
+            &MetamapSnapshot::default(),
+            &valid_core_snapshot(),
+            false,
+        );
+
+        assert!(report.blockers.is_empty());
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.can_transfer());
+        assert_eq!(
+            report.warnings[0],
+            "No existe validacion MetaMap completed asociada en el server."
+        );
+    }
+
+    #[test]
+    fn missing_metamap_does_not_skip_non_metamap_blockers() {
+        let mut core = valid_core_snapshot();
+        core.request_status = Some("Pendiente".to_owned());
+        core.transfer_cbu = None;
+
+        let report = build_validation_report(
+            &ValidationSnapshot::default(),
+            &MetamapSnapshot::default(),
+            &core,
+            false,
+        );
+
+        assert_eq!(report.warnings.len(), 1);
+        assert_eq!(report.blockers.len(), 2);
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("no 'A Transferir'"))
+        );
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("Prestamo.[CBU transferencia]"))
+        );
+        assert!(!report.can_transfer());
+    }
+
+    #[test]
+    fn metamap_cross_checks_still_block_when_validation_exists() {
+        let report = build_validation_report(
+            &ValidationSnapshot {
+                request_number: Some("999".to_owned()),
+                ..completed_validation()
+            },
+            &MetamapSnapshot {
+                document: Some("99888777".to_owned()),
+                request_number: Some("999".to_owned()),
+                amount: Some(Decimal::new(1500, 0)),
+                ..Default::default()
+            },
+            &valid_core_snapshot(),
+            false,
+        );
+
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("La validacion del server corresponde"))
+        );
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("Numero de solicitud inconsistente"))
+        );
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("Documento no coincide"))
+        );
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("Monto no coincide"))
+        );
+        assert!(!report.can_transfer());
     }
 }

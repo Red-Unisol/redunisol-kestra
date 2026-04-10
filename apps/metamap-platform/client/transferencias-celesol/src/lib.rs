@@ -1,3 +1,7 @@
+pub const APP_NAME: &str = "Transferencias Celesol";
+pub const BUILD_TAG: &str = "1.01";
+pub const APP_NAME_WITH_TAG: &str = "Transferencias Celesol 1.01";
+
 pub mod app;
 pub mod coinag_client;
 pub mod completed_log;

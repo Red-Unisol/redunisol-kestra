@@ -15,6 +15,7 @@ use eframe::egui::{self, Color32, RichText};
 use egui_extras::{Column, TableBuilder};
 
 use crate::{
+    APP_NAME_WITH_TAG,
     coinag_client::CoinagClient,
     completed_log::CompletedTransferLog,
     config::AppConfig,
@@ -37,6 +38,7 @@ pub struct TransferenciasApp {
     next_balance_poll_at: Instant,
     notices: Vec<String>,
     show_disabled_lines: bool,
+    pending_transfer_confirmation: Option<TransferConfirmation>,
 }
 
 const BALANCE_POLL_INTERVAL: Duration = Duration::from_secs(60);
@@ -57,6 +59,7 @@ impl TransferenciasApp {
             balance_loading: false,
             notices: Vec::new(),
             show_disabled_lines: false,
+            pending_transfer_confirmation: None,
         };
         log::info!("TransferenciasApp inicializada.");
         app.spawn_items_poll();
@@ -123,6 +126,40 @@ impl TransferenciasApp {
             let result = services.execute_transfer(item);
             let _ = sender.send(result);
         });
+    }
+
+    fn render_transfer_confirmation(
+        &mut self,
+        ctx: &egui::Context,
+        request_to_transfer: &mut Option<String>,
+    ) {
+        let Some(confirmation) = self.pending_transfer_confirmation.clone() else {
+            return;
+        };
+
+        let mut keep_open = true;
+        egui::Window::new("Advertencia MetaMap")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.set_min_width(430.0);
+                ui.label(&confirmation.message);
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Cancelar").clicked() {
+                        keep_open = false;
+                    }
+                    if ui.button("Transferir igual").clicked() {
+                        *request_to_transfer = Some(confirmation.request_oid.clone());
+                        keep_open = false;
+                    }
+                });
+            });
+
+        if !keep_open {
+            self.pending_transfer_confirmation = None;
+        }
     }
 
     fn process_worker_events(&mut self) {
@@ -202,10 +239,11 @@ impl eframe::App for TransferenciasApp {
         }
 
         let mut request_to_transfer = None;
+        let mut transfer_confirmation = None;
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Transferencias Celesol");
+                ui.heading(APP_NAME_WITH_TAG);
                 ui.separator();
                 ui.label(format!(
                     "Lista: {}",
@@ -385,10 +423,12 @@ impl eframe::App for TransferenciasApp {
                             });
                             row.col(|ui| {
                                 let summary = item.validation.summary();
-                                let color = if item.validation.can_transfer() {
-                                    Color32::from_rgb(24, 120, 52)
-                                } else {
+                                let color = if !item.validation.blockers.is_empty() {
                                     Color32::from_rgb(170, 30, 30)
+                                } else if !item.validation.warnings.is_empty() {
+                                    Color32::from_rgb(176, 113, 0)
+                                } else {
+                                    Color32::from_rgb(24, 120, 52)
                                 };
                                 let mut hover_lines = Vec::new();
                                 for blocker in &item.validation.blockers {
@@ -413,7 +453,12 @@ impl eframe::App for TransferenciasApp {
                                 let response =
                                     ui.add_enabled(button_enabled, egui::Button::new("Transferir"));
                                 if response.clicked() {
-                                    request_to_transfer = Some(item.request_oid().to_owned());
+                                    if item.server_validation.has_completed_validation() {
+                                        request_to_transfer = Some(item.request_oid().to_owned());
+                                    } else {
+                                        transfer_confirmation =
+                                            Some(TransferConfirmation::for_case(item));
+                                    }
                                 }
                                 if !self.services.transfer_enabled() {
                                     response.on_hover_text(
@@ -426,11 +471,37 @@ impl eframe::App for TransferenciasApp {
                 });
         });
 
+        if let Some(transfer_confirmation) = transfer_confirmation {
+            self.pending_transfer_confirmation = Some(transfer_confirmation);
+        }
+
+        self.render_transfer_confirmation(ctx, &mut request_to_transfer);
+
         if let Some(request_oid) = request_to_transfer {
             self.spawn_transfer(request_oid);
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    }
+}
+
+#[derive(Clone)]
+struct TransferConfirmation {
+    request_oid: String,
+    message: String,
+}
+
+impl TransferConfirmation {
+    fn for_case(item: &HydratedCase) -> Self {
+        Self {
+            request_oid: item.request_oid().to_owned(),
+            message: format!(
+                "No existe validacion en MetaMap para la solicitud numero {} del socio {} (linea {}).\n\nQuiere transferir?",
+                item.request_oid(),
+                item.display_name(),
+                display_credit_line(item.core.credit_line_description.as_deref())
+            ),
+        }
     }
 }
 

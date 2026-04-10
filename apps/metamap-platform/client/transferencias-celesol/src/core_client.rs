@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use reqwest::blocking::Client;
 use serde_json::{Value, json};
 
@@ -132,29 +132,43 @@ impl CoreClient {
     }
 
     fn evaluate_list(&self, payload: Value) -> Result<Value> {
-        log::debug!("POST {}/api/Empresa/EvaluateList", self.base_url);
-        self.http
-            .post(format!("{}/api/Empresa/EvaluateList", self.base_url))
-            .json(&payload)
-            .send()
-            .context("No se pudo consultar EvaluateList en el core financiero.")?
-            .error_for_status()
-            .context("EvaluateList devolvio error en el core financiero.")?
-            .json::<Value>()
-            .context("No se pudo decodificar la respuesta de EvaluateList.")
+        self.post_evaluate("EvaluateList", payload)
     }
 
     fn evaluate_obj(&self, payload: Value) -> Result<Value> {
-        log::debug!("POST {}/api/Empresa/EvaluateObj", self.base_url);
-        self.http
-            .post(format!("{}/api/Empresa/EvaluateObj", self.base_url))
+        self.post_evaluate("EvaluateObj", payload)
+    }
+
+    fn post_evaluate(&self, endpoint: &str, payload: Value) -> Result<Value> {
+        let url = format!("{}/api/Empresa/{endpoint}", self.base_url);
+        log::debug!("POST {}", url);
+        let response = self
+            .http
+            .post(&url)
             .json(&payload)
             .send()
-            .context("No se pudo consultar EvaluateObj en el core financiero.")?
-            .error_for_status()
-            .context("EvaluateObj devolvio error en el core financiero.")?
-            .json::<Value>()
-            .context("No se pudo decodificar la respuesta de EvaluateObj.")
+            .with_context(|| format!("No se pudo consultar {endpoint} en el core financiero."))?;
+
+        let status = response.status();
+        let body = response
+            .text()
+            .with_context(|| format!("No se pudo leer la respuesta de {endpoint}."))?;
+
+        if !status.is_success() {
+            let detail = body.trim();
+            return Err(anyhow!(
+                "{endpoint} devolvio HTTP {}: {}",
+                status,
+                if detail.is_empty() {
+                    "<body vacio>"
+                } else {
+                    detail
+                }
+            ));
+        }
+
+        serde_json::from_str::<Value>(&body)
+            .with_context(|| format!("No se pudo decodificar la respuesta de {endpoint}."))
     }
 }
 
