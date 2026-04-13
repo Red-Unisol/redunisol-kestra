@@ -109,6 +109,29 @@ Herramienta incluida para cifrar:
 cargo run --bin encrypt_transferencias_env -- --input transferencias.env --output transferencias.env.enc
 ```
 
+## Build local de paquete
+
+Para armar un zip local con el `.exe`, el entorno encriptado y las keys SSH, usa:
+
+```powershell
+.\build-package.ps1
+```
+
+El script busca estos archivos locales dentro de `package-input/`:
+
+- `package-input/transferencias.env.enc`
+- `package-input/ssh/coinag_tunnel_key`
+- `package-input/ssh/vps_host_key.pub`
+
+El zip se genera en `dist/`.
+
+Recomendacion importante para que el paquete funcione sin tocar rutas por instalacion:
+
+- en `transferencias.env.enc`, defini `TRANSFERENCIAS_COINAG_SSH_PRIVATE_KEY_PATH=ssh/coinag_tunnel_key`
+- en `transferencias.env.enc`, defini `TRANSFERENCIAS_COINAG_SSH_HOST_PUBLIC_KEY_PATH=ssh/vps_host_key.pub`
+
+Asi las rutas quedan relativas al archivo `transferencias.env.enc` que viaja dentro del mismo zip.
+
 ## Logs de debug
 
 En builds `debug`, la app escribe logs descriptivos por defecto en:
