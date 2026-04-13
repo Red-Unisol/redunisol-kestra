@@ -11,12 +11,13 @@ use std::{
 
 use anyhow::Result;
 use chrono::Local;
-use eframe::egui::{self, Color32, RichText};
+use eframe::egui::{self, Color32, Key, RichText, TextEdit};
 use egui_extras::{Column, TableBuilder};
+use serde_json::Value;
 
 use crate::{
     APP_NAME_WITH_TAG,
-    coinag_client::CoinagClient,
+    coinag_client::{CoinagClient, TransferLookupResponse},
     completed_log::CompletedTransferLog,
     config::AppConfig,
     core_client::CoreClient,
@@ -39,6 +40,7 @@ pub struct TransferenciasApp {
     notices: Vec<String>,
     show_disabled_lines: bool,
     pending_transfer_confirmation: Option<TransferConfirmation>,
+    transfer_lookup: TransferLookupDialog,
 }
 
 const BALANCE_POLL_INTERVAL: Duration = Duration::from_secs(60);
@@ -60,6 +62,7 @@ impl TransferenciasApp {
             notices: Vec::new(),
             show_disabled_lines: false,
             pending_transfer_confirmation: None,
+            transfer_lookup: TransferLookupDialog::default(),
         };
         log::info!("TransferenciasApp inicializada.");
         app.spawn_items_poll();
@@ -128,6 +131,27 @@ impl TransferenciasApp {
         });
     }
 
+    fn spawn_transfer_lookup(&mut self, request_number: String) {
+        if self.transfer_lookup.loading {
+            return;
+        }
+        self.transfer_lookup.loading = true;
+        self.transfer_lookup.error = None;
+        self.transfer_lookup.result = None;
+        let services = Arc::clone(&self.services);
+        let sender = self.event_tx.clone();
+        thread::spawn(
+            move || match services.lookup_transfer_by_request_number(&request_number) {
+                Ok(result) => {
+                    let _ = sender.send(WorkerEvent::TransferLookupCompleted(result));
+                }
+                Err(error) => {
+                    let _ = sender.send(WorkerEvent::TransferLookupFailed(error.to_string()));
+                }
+            },
+        );
+    }
+
     fn render_transfer_confirmation(
         &mut self,
         ctx: &egui::Context,
@@ -162,6 +186,86 @@ impl TransferenciasApp {
         }
     }
 
+    fn render_transfer_lookup_window(&mut self, ctx: &egui::Context) {
+        if !self.transfer_lookup.open {
+            return;
+        }
+
+        let mut open = self.transfer_lookup.open;
+        let mut request_to_lookup = None;
+        egui::Window::new("Consulta de transferencia")
+            .collapsible(false)
+            .movable(true)
+            .resizable(true)
+            .default_width(760.0)
+            .default_height(420.0)
+            .open(&mut open)
+            .show(ctx, |ui| {
+                ui.label("Numero de solicitud");
+                let response = ui.add(
+                    TextEdit::singleline(&mut self.transfer_lookup.request_number)
+                        .desired_width(240.0)
+                        .hint_text("Ej: 234567"),
+                );
+                let can_lookup = self.services.transfer_enabled()
+                    && !self.transfer_lookup.loading
+                    && !self.transfer_lookup.request_number.trim().is_empty();
+                let submit = response.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    let button =
+                        ui.add_enabled(can_lookup, egui::Button::new("Consultar"));
+                    if button.clicked() || (can_lookup && submit) {
+                        request_to_lookup =
+                            Some(self.transfer_lookup.request_number.trim().to_owned());
+                    }
+                    if !self.services.transfer_enabled() {
+                        button.on_hover_text("Coinag no esta configurado en este runtime.");
+                    }
+                    if self.transfer_lookup.loading {
+                        ui.spinner();
+                        ui.label("Consultando Coinag...");
+                    }
+                });
+
+                if let Some(error) = self.transfer_lookup.error.as_deref() {
+                    ui.add_space(10.0);
+                    ui.label(RichText::new(error).color(Color32::from_rgb(170, 30, 30)));
+                }
+
+                if let Some(result) = &mut self.transfer_lookup.result {
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                    egui::Grid::new("transfer_lookup_summary")
+                        .num_columns(2)
+                        .spacing([18.0, 6.0])
+                        .show(ui, |ui| {
+                            for (label, value) in &result.summary_fields {
+                                ui.strong(label);
+                                ui.label(value);
+                                ui.end_row();
+                            }
+                        });
+                    ui.add_space(10.0);
+                    ui.collapsing("JSON completo", |ui| {
+                        ui.add(
+                            TextEdit::multiline(&mut result.raw_json)
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(14)
+                                .interactive(false),
+                        );
+                    });
+                }
+            });
+
+        self.transfer_lookup.open = open;
+        if let Some(request_number) = request_to_lookup {
+            self.spawn_transfer_lookup(request_number);
+        }
+    }
+
     fn process_worker_events(&mut self) {
         while let Ok(event) = self.event_rx.try_recv() {
             match event {
@@ -182,6 +286,23 @@ impl TransferenciasApp {
                     self.balance_loading = false;
                     self.balance_text = text;
                     self.next_balance_poll_at = Instant::now() + BALANCE_POLL_INTERVAL;
+                }
+                WorkerEvent::TransferLookupCompleted(result) => {
+                    self.transfer_lookup.loading = false;
+                    self.transfer_lookup.error = None;
+                    self.transfer_lookup.result = Some(result.clone());
+                    self.transfer_lookup.open = true;
+                    self.push_notice(format!(
+                        "Consulta Coinag lista para solicitud {}.",
+                        result.request_number
+                    ));
+                }
+                WorkerEvent::TransferLookupFailed(error) => {
+                    self.transfer_lookup.loading = false;
+                    self.transfer_lookup.error = Some(error.clone());
+                    self.transfer_lookup.result = None;
+                    self.transfer_lookup.open = true;
+                    self.push_notice(format!("Error en consulta de transferencia: {error}"));
                 }
                 WorkerEvent::CaseUpdated {
                     case,
@@ -284,9 +405,22 @@ impl eframe::App for TransferenciasApp {
                 {
                     self.spawn_balance_poll("manual");
                 }
+                let lookup_button = ui.add_enabled(
+                    self.services.transfer_enabled() && !self.transfer_lookup.loading,
+                    egui::Button::new("Consulta de transferencia"),
+                );
+                if lookup_button.clicked() {
+                    self.transfer_lookup.open = true;
+                }
+                if !self.services.transfer_enabled() {
+                    lookup_button
+                        .on_hover_text("Coinag no esta configurado en este runtime.");
+                }
                 ui.checkbox(&mut self.show_disabled_lines, "Mostrar deshabilitadas");
             });
         });
+
+        self.render_transfer_lookup_window(ctx);
 
         egui::TopBottomPanel::bottom("notices")
             .resizable(true)
@@ -491,6 +625,22 @@ struct TransferConfirmation {
     message: String,
 }
 
+#[derive(Default)]
+struct TransferLookupDialog {
+    open: bool,
+    request_number: String,
+    loading: bool,
+    error: Option<String>,
+    result: Option<TransferLookupResult>,
+}
+
+#[derive(Clone)]
+struct TransferLookupResult {
+    request_number: String,
+    summary_fields: Vec<(String, String)>,
+    raw_json: String,
+}
+
 impl TransferConfirmation {
     fn for_case(item: &HydratedCase) -> Self {
         Self {
@@ -615,6 +765,20 @@ impl AppServices {
             return "Saldo actual: no disponible (consulta de saldo no configurada)".to_owned();
         }
         coinag.build_available_balance_text()
+    }
+
+    fn lookup_transfer_by_request_number(&self, request_number: &str) -> Result<TransferLookupResult> {
+        let coinag = self
+            .coinag
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Coinag no esta configurado en este runtime."))?;
+        let response = coinag.lookup_transfer_by_request_number(request_number)?;
+        Ok(TransferLookupResult {
+            request_number: response.request_number.clone(),
+            summary_fields: build_transfer_lookup_summary_fields(&response),
+            raw_json: serde_json::to_string_pretty(&response.body)
+                .unwrap_or_else(|_| response.body.to_string()),
+        })
     }
 
     fn load_candidates(&self, existing_items: Vec<HydratedCase>) -> Result<Vec<HydratedCase>> {
@@ -1152,6 +1316,8 @@ enum WorkerEvent {
     ItemsLoaded(Vec<HydratedCase>),
     ItemsLoadFailed(String),
     BalanceUpdated(String),
+    TransferLookupCompleted(TransferLookupResult),
+    TransferLookupFailed(String),
     CaseUpdated {
         case: HydratedCase,
         message: String,
@@ -1191,4 +1357,44 @@ fn display_credit_line(value: Option<&str>) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or("N/D")
         .to_owned()
+}
+
+fn build_transfer_lookup_summary_fields(response: &TransferLookupResponse) -> Vec<(String, String)> {
+    let root = response.body.get("response").unwrap_or(&response.body);
+    let mut fields = vec![
+        ("Solicitud".to_owned(), response.request_number.clone()),
+        ("idTrxCliente".to_owned(), response.id_trx_cliente.clone()),
+    ];
+
+    for (label, key) in [
+        ("Id banco", "id"),
+        ("Id trx original", "idTrxOriginal"),
+        ("Tipo", "tipo"),
+        ("Fecha y hora", "fechaHora"),
+        ("Cuit debito", "cuitDebito"),
+        ("Cuenta debito", "cuentaDebito"),
+        ("Cuit credito", "cuitCredito"),
+        ("Cuenta credito", "cuentaCredito"),
+        ("Importe", "importe"),
+        ("Concepto", "concepto"),
+        ("Estado", "estado"),
+        ("Descripcion", "descripcionTrx"),
+        ("Id anulacion", "idAnulacion"),
+    ] {
+        if let Some(value) = root.get(key).and_then(value_to_display) {
+            fields.push((label.to_owned(), value));
+        }
+    }
+
+    fields
+}
+
+fn value_to_display(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => None,
+        Value::String(text) => Some(text.trim().to_owned()).filter(|text| !text.is_empty()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => Some(value.to_string()),
+    }
 }
