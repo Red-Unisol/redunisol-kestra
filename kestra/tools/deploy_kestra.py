@@ -74,6 +74,22 @@ def ensure_success(response: requests.Response, action: str) -> None:
         raise RuntimeError(f"{action} failed with {response.status_code}: {response.text[:500]}")
 
 
+def get_flow_url(session: requests.Session, tenant: str, namespace: str, flow_id: str) -> str:
+    return f"{session.base_url}/api/v1/{tenant}/flows/{namespace}/{flow_id}"
+
+
+def flow_exists(session: requests.Session, tenant: str, namespace: str, flow_id: str) -> bool:
+    response = session.get(
+        get_flow_url(session, tenant, namespace, flow_id),
+        timeout=30,
+    )
+    if response.status_code == 404:
+        return False
+
+    ensure_success(response, f"Check flow {namespace}/{flow_id}")
+    return True
+
+
 def deploy_flow(session: requests.Session, tenant: str, flow_path: Path, target_namespace: str, environment: str, dry_run: bool) -> None:
     source = normalize_flow_source(flow_path, target_namespace, environment)
     flow_id = yaml.safe_load(source)["id"]
@@ -81,20 +97,23 @@ def deploy_flow(session: requests.Session, tenant: str, flow_path: Path, target_
     if dry_run:
         return
 
-    response = session.put(
-        f"{session.base_url}/api/v1/{tenant}/flows/{target_namespace}/{flow_id}",
-        data=source.encode("utf-8"),
-        headers={"Content-Type": "application/x-yaml"},
-        timeout=30,
-    )
-    if response.status_code == 404:
+    headers = {"Content-Type": "application/x-yaml"}
+    if flow_exists(session, tenant, target_namespace, flow_id):
+        response = session.put(
+            get_flow_url(session, tenant, target_namespace, flow_id),
+            data=source.encode("utf-8"),
+            headers=headers,
+            timeout=30,
+        )
+        ensure_success(response, f"Update flow {flow_path.name}")
+    else:
         response = session.post(
             f"{session.base_url}/api/v1/{tenant}/flows",
             data=source.encode("utf-8"),
-            headers={"Content-Type": "application/x-yaml"},
+            headers=headers,
             timeout=30,
         )
-    ensure_success(response, f"Deploy flow {flow_path.name}")
+        ensure_success(response, f"Create flow {flow_path.name}")
 
 
 def deploy_namespace_file(
