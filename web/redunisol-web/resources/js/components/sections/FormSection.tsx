@@ -153,9 +153,6 @@ const bancos = [
     'Otros',
 ];
 
-const WEBHOOK_URL =
-    'https://kestra.redunisol.com.ar/api/v1/main/executions/webhook/redunisol.prod.marketing-crm/bitrix24_form_webhook/bd_webhook_key_20260319_redunisol';
-
 // ── Form state interface ───────────────────────────────────────────────────────
 // Named LeadFormData to avoid shadowing the browser's built-in FormData constructor.
 
@@ -546,14 +543,17 @@ function Step4({
 
 function ResultModal({
     result,
+    errorMessage,
     onClose,
     onReset,
 }: {
-    result: 'success' | 'error';
+    result: 'success' | 'error' | 'not_qualified';
+    errorMessage: string | null;
     onClose: () => void;
     onReset: () => void;
 }) {
     const isSuccess = result === 'success';
+    const isNotQualified = result === 'not_qualified';
 
     return (
         <motion.div
@@ -592,7 +592,11 @@ function ResultModal({
                         duration: 0.5,
                     }}
                     className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full ${
-                        isSuccess ? 'bg-[#6BAF9220]' : 'bg-red-50'
+                        isSuccess
+                            ? 'bg-[#6BAF9220]'
+                            : isNotQualified
+                              ? 'bg-amber-50'
+                              : 'bg-red-50'
                     }`}
                 >
                     {isSuccess ? (
@@ -605,7 +609,11 @@ function ResultModal({
                         <WarningCircleIcon
                             size={38}
                             weight="fill"
-                            className="text-red-500"
+                            className={
+                                isNotQualified
+                                    ? 'text-amber-500'
+                                    : 'text-red-500'
+                            }
                         />
                     )}
                 </motion.div>
@@ -617,7 +625,11 @@ function ResultModal({
                     transition={{ delay: 0.2 }}
                     className="mb-2 text-xl font-bold text-[#1e2d3d]"
                 >
-                    {isSuccess ? '¡Solicitud enviada!' : 'Algo salió mal'}
+                    {isSuccess
+                        ? '¡Solicitud enviada!'
+                        : isNotQualified
+                          ? 'No precalificás'
+                          : 'Algo salió mal'}
                 </motion.h3>
 
                 {/* Description */}
@@ -629,7 +641,11 @@ function ResultModal({
                 >
                     {isSuccess
                         ? 'Hemos enviado tu solicitud a las entidades. Te contactaremos con la mejor oferta disponible.'
-                        : 'Ocurrió un error al enviar tu solicitud. Revisá tu conexión y volvé a intentarlo.'}
+                        : isNotQualified
+                          ? (errorMessage ??
+                            'Tu situación no califica para esta solicitud.')
+                          : (errorMessage ??
+                            'Ocurrió un error al enviar tu solicitud. Revisá tu conexión y volvé a intentarlo.')}
                 </motion.p>
 
                 {/* Actions */}
@@ -650,6 +666,26 @@ function ResultModal({
                         >
                             Listo
                         </button>
+                    ) : isNotQualified ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="w-full rounded-full bg-[#1e2d3d] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2d3f54]"
+                            >
+                                Entendido
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onReset();
+                                    onClose();
+                                }}
+                                className="text-sm text-gray-400 transition hover:text-gray-600 hover:underline"
+                            >
+                                Empezar de nuevo
+                            </button>
+                        </>
                     ) : (
                         <>
                             <button
@@ -681,7 +717,13 @@ function ResultModal({
 
 export default function FormSection({
     config,
-}: { config?: Partial<FormSectionConfig> } = {}) {
+    landingSlug,
+    landingTitle,
+}: {
+    config?: Partial<FormSectionConfig>;
+    landingSlug: string;
+    landingTitle: string;
+}) {
     const cfg = useMemo(
         (): FormSectionConfig => ({
             ...DEFAULT_CONFIG,
@@ -702,7 +744,10 @@ export default function FormSection({
     );
 
     const [step, setStep] = useState(1); // always starts at 1, which is always enabled
-    const [result, setResult] = useState<'success' | 'error' | null>(null);
+    const [result, setResult] = useState<
+        'success' | 'error' | 'not_qualified' | null
+    >(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [formData, setFormData] = useState<LeadFormData>(INITIAL_FORM);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [reciboUrl, setReciboUrl] = useState<string | null>(null);
@@ -727,41 +772,77 @@ export default function FormSection({
     const handleSubmit = async () => {
         setIsSubmitting(true);
 
-        const payload: Record<string, string> = {};
+        const params = new URLSearchParams(window.location.search);
+        const payload: Record<string, string | boolean> = {
+            landing_slug: landingSlug,
+            landing_title: landingTitle,
+            landing_url: window.location.href,
+            terminos: formData.terminos,
+        };
+
         if (formData.email) payload.email = formData.email;
-        if (formData.celular) payload.whatsapp = formData.celular;
+        if (formData.celular) payload.celular = formData.celular;
         if (formData.cuil) payload.cuil = formData.cuil;
         if (cfg.provincia.enabled) {
-            if (formData.provincia) payload.province = formData.provincia;
+            if (formData.provincia) payload.provincia = formData.provincia;
         } else if (cfg.provincia.defaultValue) {
-            payload.province = cfg.provincia.defaultValue;
+            payload.provincia = cfg.provincia.defaultValue;
         }
 
         if (cfg.situacionLaboral.enabled) {
             if (formData.situacionLaboral)
-                payload.employment_status = formData.situacionLaboral;
+                payload.situacion_laboral = formData.situacionLaboral;
         } else if (cfg.situacionLaboral.defaultValue) {
-            payload.employment_status = cfg.situacionLaboral.defaultValue;
+            payload.situacion_laboral = cfg.situacionLaboral.defaultValue;
         }
 
         if (cfg.banco.enabled) {
-            if (formData.banco) payload.payment_bank = formData.banco;
+            if (formData.banco) payload.banco = formData.banco;
         } else if (cfg.banco.defaultValue) {
-            payload.payment_bank = cfg.banco.defaultValue;
+            payload.banco = cfg.banco.defaultValue;
         }
         if (reciboUrl) payload.recibo_url = reciboUrl;
 
+        for (const key of [
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_term',
+            'utm_content',
+        ]) {
+            const value = params.get(key);
+            if (value) payload[key] = value;
+        }
+
         try {
-            const res = await fetch(WEBHOOK_URL, {
+            const res = await fetch('/api/form-submissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = (await res.json()) as {
+                ok?: boolean;
+                message?: string;
+                qualified?: boolean;
+            };
 
+            if (!res.ok || data.ok === false) {
+                setErrorMessage(data.message ?? null);
+                setResult('error');
+                return;
+            }
+
+            if (data.qualified === false) {
+                setErrorMessage(data.message ?? null);
+                setResult('not_qualified');
+                return;
+            }
+
+            setErrorMessage(null);
             setResult('success');
         } catch {
+            setErrorMessage(null);
             setResult('error');
         } finally {
             setIsSubmitting(false);
@@ -937,7 +1018,11 @@ export default function FormSection({
                 {result !== null && (
                     <ResultModal
                         result={result}
-                        onClose={() => setResult(null)}
+                        errorMessage={errorMessage}
+                        onClose={() => {
+                            setResult(null);
+                            setErrorMessage(null);
+                        }}
                         onReset={handleReset}
                     />
                 )}

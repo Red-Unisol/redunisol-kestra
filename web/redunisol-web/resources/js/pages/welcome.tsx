@@ -20,6 +20,7 @@ interface PageSection {
 }
 
 interface HomePageProps {
+    landingSlug: string;
     sections: PageSection[];
     title: string;
     [key: string]: unknown;
@@ -30,7 +31,7 @@ function useSection<T>(sections: PageSection[], type: string): T | undefined {
 }
 
 export default function Page() {
-    const { sections } = usePage<HomePageProps>().props;
+    const { landingSlug, sections, title } = usePage<HomePageProps>().props;
     const [activeTab, setActiveTab] = useState('unset');
 
     const hero = useSection<HeroData>(sections, 'hero');
@@ -46,7 +47,11 @@ export default function Page() {
         <>
             <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
             <div className="bg-gradient-custom w-full">
-                <FormSection config={formConfig} />
+                <FormSection
+                    config={formConfig}
+                    landingSlug={landingSlug}
+                    landingTitle={title}
+                />
                 <main className="rounded-tl-4xl rounded-tr-4xl bg-white">
                     {activeTab !== 'solicita' && hero && <Hero data={hero} />}
                     {activeTab !== 'creditos' && services && (
