@@ -153,9 +153,6 @@ const bancos = [
     'Otros',
 ];
 
-const WEBHOOK_URL =
-    'https://kestra.redunisol.com.ar/api/v1/main/executions/webhook/redunisol.prod.marketing-crm/bitrix24_form_webhook/bd_webhook_key_20260319_redunisol';
-
 // ── Form state interface ───────────────────────────────────────────────────────
 // Named LeadFormData to avoid shadowing the browser's built-in FormData constructor.
 
@@ -752,7 +749,7 @@ export default function FormSection({
         if (reciboUrl) payload.recibo_url = reciboUrl;
 
         try {
-            const res = await fetch(WEBHOOK_URL, {
+            const res = await fetch('/api/form/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),

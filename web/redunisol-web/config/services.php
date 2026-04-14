@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'kestra' => [
+        'form_webhook'         => env('KESTRA_FORM_WEBHOOK_URL'),
+        'form_webhook_timeout' => (int) env('KESTRA_FORM_WEBHOOK_TIMEOUT_SECONDS', 10),
+        'form_lead_source'     => env('KESTRA_FORM_DEFAULT_LEAD_SOURCE', 'web'),
+    ],
+
 ];
