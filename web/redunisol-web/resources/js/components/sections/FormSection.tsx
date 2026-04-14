@@ -153,9 +153,6 @@ const bancos = [
     'Otros',
 ];
 
-const WEBHOOK_URL =
-    'https://kestra.redunisol.com.ar/api/v1/main/executions/webhook/redunisol.prod.marketing-crm/bitrix24_form_webhook/bd_webhook_key_20260319_redunisol';
-
 // ── Form state interface ───────────────────────────────────────────────────────
 // Named LeadFormData to avoid shadowing the browser's built-in FormData constructor.
 
@@ -681,7 +678,13 @@ function ResultModal({
 
 export default function FormSection({
     config,
-}: { config?: Partial<FormSectionConfig> } = {}) {
+    landingSlug,
+    landingTitle,
+}: {
+    config?: Partial<FormSectionConfig>;
+    landingSlug: string;
+    landingTitle: string;
+}) {
     const cfg = useMemo(
         (): FormSectionConfig => ({
             ...DEFAULT_CONFIG,
@@ -727,24 +730,46 @@ export default function FormSection({
     const handleSubmit = async () => {
         setIsSubmitting(true);
 
-        const payload: Record<string, string> = {};
+        const params = new URLSearchParams(window.location.search);
+        const payload: Record<string, string | boolean> = {
+            landing_slug: landingSlug,
+            landing_title: landingTitle,
+            landing_url: window.location.href,
+            terminos: formData.terminos,
+        };
+
         if (formData.email) payload.email = formData.email;
-        if (formData.celular) payload.whatsapp = formData.celular;
+        if (formData.celular) payload.celular = formData.celular;
         if (formData.cuil) payload.cuil = formData.cuil;
-        if (formData.provincia) payload.province = formData.provincia;
+        if (formData.provincia) payload.provincia = formData.provincia;
         if (formData.situacionLaboral)
-            payload.employment_status = formData.situacionLaboral;
-        if (formData.banco) payload.payment_bank = formData.banco;
+            payload.situacion_laboral = formData.situacionLaboral;
+        if (formData.banco) payload.banco = formData.banco;
         if (reciboUrl) payload.recibo_url = reciboUrl;
 
+        for (const key of [
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_term',
+            'utm_content',
+        ]) {
+            const value = params.get(key);
+            if (value) payload[key] = value;
+        }
+
         try {
-            const res = await fetch(WEBHOOK_URL, {
+            const res = await fetch('/api/form-submissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = (await res.json()) as { ok?: boolean };
+
+            if (!res.ok || data.ok === false) {
+                throw new Error(`HTTP ${res.status}`);
+            }
 
             setResult('success');
         } catch {
