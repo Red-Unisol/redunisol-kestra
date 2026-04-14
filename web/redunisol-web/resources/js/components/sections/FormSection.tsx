@@ -21,9 +21,9 @@ export interface FormSectionConfig {
     celular: FormFieldConfig;
     terminos: FormFieldConfig;
     recibo: { enabled: boolean; label: string };
-    provincia: { enabled: boolean };
-    situacionLaboral: FormFieldConfig;
-    banco: FormFieldConfig;
+    provincia: { enabled: boolean; defaultValue?: string };
+    situacionLaboral: FormFieldConfig & { defaultValue?: string };
+    banco: FormFieldConfig & { defaultValue?: string };
 }
 
 const DEFAULT_CONFIG: FormSectionConfig = {
@@ -731,10 +731,24 @@ export default function FormSection({
         if (formData.email) payload.email = formData.email;
         if (formData.celular) payload.whatsapp = formData.celular;
         if (formData.cuil) payload.cuil = formData.cuil;
-        if (formData.provincia) payload.province = formData.provincia;
-        if (formData.situacionLaboral)
-            payload.employment_status = formData.situacionLaboral;
-        if (formData.banco) payload.payment_bank = formData.banco;
+        if (cfg.provincia.enabled) {
+            if (formData.provincia) payload.province = formData.provincia;
+        } else if (cfg.provincia.defaultValue) {
+            payload.province = cfg.provincia.defaultValue;
+        }
+
+        if (cfg.situacionLaboral.enabled) {
+            if (formData.situacionLaboral)
+                payload.employment_status = formData.situacionLaboral;
+        } else if (cfg.situacionLaboral.defaultValue) {
+            payload.employment_status = cfg.situacionLaboral.defaultValue;
+        }
+
+        if (cfg.banco.enabled) {
+            if (formData.banco) payload.payment_bank = formData.banco;
+        } else if (cfg.banco.defaultValue) {
+            payload.payment_bank = cfg.banco.defaultValue;
+        }
         if (reciboUrl) payload.recibo_url = reciboUrl;
 
         try {
