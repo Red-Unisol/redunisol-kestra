@@ -36,7 +36,9 @@ return [
     ],
 
     'gtm' => [
-        'id' => env('GTM_ID'),
+        'id'      => env('GTM_ID'),
+        'auth'    => env('GTM_AUTH'),
+        'preview' => env('GTM_PREVIEW'),
     ],
 
     'kestra' => [

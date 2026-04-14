@@ -1,6 +1,9 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
 
+const debug = import.meta.env.VITE_TRACKING_DEBUG === 'true';
+const ga4Debug = import.meta.env.VITE_GA4_DEBUG === 'true';
+
 export default function useTracking() {
     const { url } = usePage();
     const isFirstRender = useRef(true);
@@ -16,8 +19,9 @@ export default function useTracking() {
         window.dataLayer.push({
             event: 'pageview',
             page: url,
+            ...(ga4Debug && { debug_mode: true }),
         });
 
-        console.log('[Tracking] pageview:', url);
+        if (debug) console.log('[Tracking] pageview:', url);
     }, [url]);
 }
