@@ -149,6 +149,11 @@ class BusinessLogicTests(unittest.TestCase):
                 "employment_status": "Jubilado Provincial",
                 "payment_bank": "Banco Santander Rio S.A.",
                 "lead_source": "Facebook",
+                "utm_source": "google",
+                "utm_medium": "cpc",
+                "utm_campaign": "policias-abril",
+                "utm_term": "prestamo policia cordoba",
+                "utm_content": "anuncio-a",
             },
             env=self.env,
             bitrix_client=client,
@@ -169,6 +174,11 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[1][1]["fields"]["UF_CONTACT_CUIL"], "20876543219")
         self.assertEqual(client.calls[3][1]["fields"]["UF_CRM_1693840106704"], "20876543219")
         self.assertEqual(client.calls[3][1]["fields"]["UF_CRM_PROCESSING_POLICY"], "4041")
+        self.assertEqual(client.calls[3][1]["fields"]["UTM_SOURCE"], "google")
+        self.assertEqual(client.calls[3][1]["fields"]["UTM_MEDIUM"], "cpc")
+        self.assertEqual(client.calls[3][1]["fields"]["UTM_CAMPAIGN"], "policias-abril")
+        self.assertEqual(client.calls[3][1]["fields"]["UTM_TERM"], "prestamo policia cordoba")
+        self.assertEqual(client.calls[3][1]["fields"]["UTM_CONTENT"], "anuncio-a")
 
     def test_process_form_body_returns_json_ready_payload_for_form_body(self) -> None:
         client = FakeBitrixClient()
@@ -239,6 +249,11 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[-2][0], "crm.lead.fields")
         self.assertEqual(client.calls[-1][0], "crm.lead.add")
         self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_PROCESSING_POLICY"], "4041")
+        self.assertNotIn("UTM_SOURCE", client.calls[-1][1]["fields"])
+        self.assertNotIn("UTM_MEDIUM", client.calls[-1][1]["fields"])
+        self.assertNotIn("UTM_CAMPAIGN", client.calls[-1][1]["fields"])
+        self.assertNotIn("UTM_TERM", client.calls[-1][1]["fields"])
+        self.assertNotIn("UTM_CONTENT", client.calls[-1][1]["fields"])
 
     def test_classify_lead_skips_when_processing_policy_is_not_process(self) -> None:
         client = FakeBitrixClient()

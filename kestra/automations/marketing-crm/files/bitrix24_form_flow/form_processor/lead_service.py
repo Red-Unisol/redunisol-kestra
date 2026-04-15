@@ -16,26 +16,30 @@ def create_lead(
     logger: Logger,
 ) -> int:
     logger.info(f"Creando lead para el contacto {contact_id}.")
+    fields = {
+        "TITLE": submission.full_name,
+        "NAME": submission.full_name,
+        "EMAIL": [{"VALUE": submission.email, "VALUE_TYPE": "WORK"}],
+        "PHONE": [{"VALUE": submission.whatsapp, "VALUE_TYPE": "WORK"}],
+        "CONTACT_ID": contact_id,
+        config.fields.lead_processing_policy: _resolve_enum_id(
+            client,
+            config.fields.lead_processing_policy,
+            config.processing_policy.skip,
+        ),
+        config.fields.lead_cuil: submission.cuil_digits,
+        config.fields.lead_employment_status: submission.employment_status.bitrix_id,
+        config.fields.lead_payment_bank: [submission.payment_bank.bitrix_id],
+        config.fields.lead_province: submission.province.bitrix_id,
+        config.fields.lead_source: submission.lead_source.bitrix_id,
+    }
+
+    fields.update(_build_optional_tracking_fields(config, submission))
+
     lead_id = client.call(
         "crm.lead.add",
         {
-            "fields": {
-                "TITLE": submission.full_name,
-                "NAME": submission.full_name,
-                "EMAIL": [{"VALUE": submission.email, "VALUE_TYPE": "WORK"}],
-                "PHONE": [{"VALUE": submission.whatsapp, "VALUE_TYPE": "WORK"}],
-                "CONTACT_ID": contact_id,
-                config.fields.lead_processing_policy: _resolve_enum_id(
-                    client,
-                    config.fields.lead_processing_policy,
-                    config.processing_policy.skip,
-                ),
-                config.fields.lead_cuil: submission.cuil_digits,
-                config.fields.lead_employment_status: submission.employment_status.bitrix_id,
-                config.fields.lead_payment_bank: [submission.payment_bank.bitrix_id],
-                config.fields.lead_province: submission.province.bitrix_id,
-                config.fields.lead_source: submission.lead_source.bitrix_id,
-            }
+            "fields": fields
         },
     )
     return int(lead_id)
@@ -133,6 +137,24 @@ def _resolve_enum_id(
     raise RuntimeError(
         f'No se encontro el valor "{target_label}" en la enumeracion del campo "{field_name}".'
     )
+
+
+def _build_optional_tracking_fields(
+    config: AppConfig,
+    submission: NormalizedInput,
+) -> dict[str, str]:
+    optional_fields = {
+        config.fields.lead_utm_source: submission.utm_source,
+        config.fields.lead_utm_medium: submission.utm_medium,
+        config.fields.lead_utm_campaign: submission.utm_campaign,
+        config.fields.lead_utm_term: submission.utm_term,
+        config.fields.lead_utm_content: submission.utm_content,
+    }
+    return {
+        field_name: value
+        for field_name, value in optional_fields.items()
+        if value is not None and value != ""
+    }
 
 
 def _lead_full_name(lead: dict[str, Any]) -> str:

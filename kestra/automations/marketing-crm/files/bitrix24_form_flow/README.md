@@ -52,7 +52,12 @@ Formato canónico recomendado:
   "province": "cordoba",
   "employment_status": "policia",
   "payment_bank": "banco_de_la_nacion_argentina",
-  "lead_source": "google"
+  "lead_source": "google",
+  "utm_source": "google",
+  "utm_medium": "cpc",
+  "utm_campaign": "policias-abril",
+  "utm_term": "prestamo policia cordoba",
+  "utm_content": "anuncio-a"
 }
 ```
 
@@ -60,6 +65,9 @@ Compatibilidad legacy:
 
 - acepta nombres de campo del HTML actual: `name`, `ProvinciaDeContacto`, `Situacion_Laboral`, `bancoCobroCliente`, `origenFormulario`
 - acepta también IDs de Bitrix24 para provincia, situación laboral, banco y origen
+- si llegan `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` y `utm_content`, se reenvian al lead de Bitrix en los campos estandar `UTM_*`
+- si no llegan campos UTM, no se envian a Bitrix
+- por ahora `landing_url`, `landing_slug` y `landing_title` no se usan en el flow de Kestra
 
 ## Salida
 
@@ -100,6 +108,11 @@ Opcionales para override de campos del lead:
 - `BITRIX24_LEAD_PROVINCE_FIELD`
 - `BITRIX24_LEAD_SOURCE_FIELD`
 - `BITRIX24_TIMEOUT_SECONDS`
+- `BITRIX24_LEAD_UTM_SOURCE_FIELD`
+- `BITRIX24_LEAD_UTM_MEDIUM_FIELD`
+- `BITRIX24_LEAD_UTM_CAMPAIGN_FIELD`
+- `BITRIX24_LEAD_UTM_TERM_FIELD`
+- `BITRIX24_LEAD_UTM_CONTENT_FIELD`
 
 Valores actualmente confirmados en el CRM:
 
@@ -113,6 +126,11 @@ Valores actualmente confirmados en el CRM:
 - `BITRIX24_LEAD_PROVINCE_FIELD=UF_CRM_64E65D2B2136C`
 - `BITRIX24_LEAD_SOURCE_FIELD=UF_CRM_1722365051`
 - `BITRIX24_LEAD_REJECTION_REASON_FIELD=UF_CRM_REJECTION_REASON`
+- `BITRIX24_LEAD_UTM_SOURCE_FIELD=UTM_SOURCE`
+- `BITRIX24_LEAD_UTM_MEDIUM_FIELD=UTM_MEDIUM`
+- `BITRIX24_LEAD_UTM_CAMPAIGN_FIELD=UTM_CAMPAIGN`
+- `BITRIX24_LEAD_UTM_TERM_FIELD=UTM_TERM`
+- `BITRIX24_LEAD_UTM_CONTENT_FIELD=UTM_CONTENT`
 - estado de lead para calificados: `UC_64AUC9` (`RESULTADO GANADO`)
 - estado de lead para rechazados: `UC_1P8I07` (`RESULTADO PERDIDO`)
 
