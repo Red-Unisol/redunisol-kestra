@@ -43,6 +43,7 @@ pub struct TransferenciasApp {
 }
 
 const BALANCE_POLL_INTERVAL: Duration = Duration::from_secs(60);
+const TRANSFER_PROCESSING_MESSAGE: &str = "Procesando transferencia...";
 
 impl TransferenciasApp {
     pub fn new(config: AppConfig) -> Result<Self> {
@@ -120,7 +121,7 @@ impl TransferenciasApp {
         }
         log::info!("Iniciando transferencia para solicitud {}.", request_oid);
         self.items[position].busy = true;
-        self.items[position].message = Some("Procesando transferencia...".to_owned());
+        self.items[position].message = Some(TRANSFER_PROCESSING_MESSAGE.to_owned());
         let item = self.items[position].clone();
         let services = Arc::clone(&self.services);
         let sender = self.event_tx.clone();
@@ -286,7 +287,7 @@ impl TransferenciasApp {
                 WorkerEvent::ItemsLoaded(items) => {
                     self.items_loading = false;
                     log::info!("Polling completado. items_cargados={}.", items.len());
-                    self.items = items;
+                    self.items = preserve_busy_items(&self.items, items);
                     self.next_poll_at = Instant::now() + self.services.poll_interval;
                     self.push_notice("Lista actualizada desde el core financiero.");
                 }
@@ -840,11 +841,6 @@ impl AppServices {
         core_snapshot: CoreSnapshot,
         existing: Option<HydratedCase>,
     ) -> HydratedCase {
-        let busy = existing.as_ref().is_some_and(|item| item.busy);
-        let busy_message = existing
-            .as_ref()
-            .filter(|item| item.busy)
-            .and_then(|item| item.message.clone());
         let previous_core = existing.as_ref().map(|item| item.core.clone());
 
         let mut case = existing.unwrap_or_else(|| HydratedCase {
@@ -857,8 +853,8 @@ impl AppServices {
             message: None,
         });
         case.core = core_snapshot;
-        case.busy = busy;
-        case.message = busy_message;
+        case.busy = false;
+        case.message = None;
         case.transfer_guard = CoinagTransferGuard::Unknown;
         log::debug!("Hidratando solicitud {}.", case.request_oid());
 
@@ -879,12 +875,6 @@ impl AppServices {
         core_snapshot: CoreSnapshot,
         existing: Option<HydratedCase>,
     ) -> HydratedCase {
-        let busy = existing.as_ref().is_some_and(|item| item.busy);
-        let busy_message = existing
-            .as_ref()
-            .filter(|item| item.busy)
-            .and_then(|item| item.message.clone());
-
         let mut case = existing.unwrap_or_else(|| HydratedCase {
             server_validation: Default::default(),
             metamap: Default::default(),
@@ -895,8 +885,8 @@ impl AppServices {
             message: None,
         });
         case.core = core_snapshot;
-        case.busy = busy;
-        case.message = busy_message;
+        case.busy = false;
+        case.message = None;
         case.transfer_guard = CoinagTransferGuard::Unknown;
         self.mark_disabled_case(&mut case);
         case
@@ -1271,6 +1261,81 @@ enum WorkerEvent {
         receipt_path: Option<PathBuf>,
         refresh_balance: bool,
     },
+}
+
+fn preserve_busy_items(
+    current_items: &[HydratedCase],
+    mut loaded_items: Vec<HydratedCase>,
+) -> Vec<HydratedCase> {
+    let busy_items = current_items
+        .iter()
+        .filter(|item| item.busy)
+        .map(|item| (item.request_oid().to_owned(), item.message.clone()))
+        .collect::<HashMap<_, _>>();
+
+    for item in &mut loaded_items {
+        if let Some(message) = busy_items.get(item.request_oid()) {
+            item.busy = true;
+            item.message = message.clone();
+        } else if item.busy {
+            item.busy = false;
+            if item.message.as_deref() == Some(TRANSFER_PROCESSING_MESSAGE) {
+                item.message = None;
+            }
+        }
+    }
+
+    loaded_items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_case(request_oid: &str, busy: bool, message: Option<&str>) -> HydratedCase {
+        HydratedCase {
+            server_validation: Default::default(),
+            metamap: Default::default(),
+            core: CoreSnapshot {
+                request_oid: request_oid.to_owned(),
+                ..Default::default()
+            },
+            transfer_guard: Default::default(),
+            validation: Default::default(),
+            busy,
+            message: message.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn preserve_busy_items_keeps_current_inflight_state() {
+        let current_items = vec![build_case(
+            "241705",
+            true,
+            Some(TRANSFER_PROCESSING_MESSAGE),
+        )];
+        let loaded_items = vec![build_case("241705", false, Some("ERROR"))];
+
+        let merged = preserve_busy_items(&current_items, loaded_items);
+
+        assert!(merged[0].busy);
+        assert_eq!(merged[0].message.as_deref(), Some(TRANSFER_PROCESSING_MESSAGE));
+    }
+
+    #[test]
+    fn preserve_busy_items_clears_stale_processing_state() {
+        let current_items = vec![build_case("241705", false, Some("ERROR"))];
+        let loaded_items = vec![build_case(
+            "241705",
+            true,
+            Some(TRANSFER_PROCESSING_MESSAGE),
+        )];
+
+        let merged = preserve_busy_items(&current_items, loaded_items);
+
+        assert!(!merged[0].busy);
+        assert_eq!(merged[0].message, None);
+    }
 }
 
 fn compare_request_oids(left: &str, right: &str) -> std::cmp::Ordering {
