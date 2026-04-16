@@ -11,9 +11,9 @@ La feature implementada agrega una integracion con la API publica de Central de 
 El comportamiento nuevo queda dividido en dos partes:
 
 - clasificacion online: al crear o reclasificar un lead, se consulta BCRA usando el CUIL y se decide si corresponde rechazo por situacion negativa
-- backfill programado: un flow nuevo recorre los leads creados en el dia que todavia no tienen snapshot BCRA y les completa estado, resultado y timestamp
+- backfill programado: un flow nuevo recorre los leads creados en el dia que todavia no tienen snapshot BCRA y les completa un campo legible, otro raw y el timestamp separado
 
-Ademas de decidir rechazo, la feature persiste un snapshot compacto en Bitrix24 cuando existen los tres campos custom nuevos para almacenar ese resultado.
+Ademas de decidir rechazo, la feature persiste un snapshot compacto en Bitrix24 cuando existen los tres campos Bitrix elegidos para almacenar ese resultado.
 
 ## Feature Implementada
 
@@ -21,7 +21,7 @@ Ademas de decidir rechazo, la feature persiste un snapshot compacto en Bitrix24 
 
 La clasificacion del lead ahora puede ejecutar una consulta a:
 
-- `https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/Historicas/{identificacion}`
+- `https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/{identificacion}`
 
 Archivos principales:
 
@@ -32,33 +32,26 @@ Archivos principales:
 El flujo funcional implementado es este:
 
 1. se toma el CUIL normalizado del lead
-2. si el lead ya tiene snapshot BCRA guardado, se reutiliza ese estado y no se vuelve a consultar upstream
+2. si el lead ya tiene snapshot BCRA guardado en el campo raw, se reutiliza ese resultado y no se vuelve a consultar upstream
 3. si no tiene snapshot, se consulta BCRA
 4. si la respuesta es persistible, se guarda en Bitrix24
 5. si el estado resultante es `NEGATIVO`, el lead se rechaza con motivo `SIT NEG BCRA`
-
-Estados que hoy puede persistir el snapshot:
-
-- `OK`
-- `NEGATIVO`
-- `SIN_DATOS`
-- `IDENTIFICACION_INVALIDA`
 
 Errores temporales y `429 rate limit` no se persisten como snapshot.
 
 ### 2. Rechazo automatico por situacion negativa
 
-Cuando la evaluacion BCRA queda en `NEGATIVO`, la clasificacion fuerza este resultado:
+Cuando la evaluacion BCRA queda en rechazo, la clasificacion fuerza este resultado:
 
 - `qualified = false`
 - `reason = bcra_negative_situation`
 - `rejection_label = SIT NEG BCRA`
 
-La implementacion actual decide `NEGATIVO` cuando la respuesta historica del BCRA acumula `situacion = 5` en al menos `4` entidades distintas. Esa es la regla que realmente usa hoy `bcra_client.py`.
+La implementacion actual sigue usando un umbral de rechazo basado en entidades con `situacion = 5`, pero ahora aplicado sobre el snapshot actual del endpoint `Deudas`.
 
 Copy actual documentado para ese rechazo:
 
-- `El BCRA informa al menos 2 entidades distintas con situacion 5 en el historial consultado.`
+- `El snapshot actual del BCRA supera el umbral permitido de situaciones 5.`
 
 Este es el texto que hoy devuelve la clasificacion cuando el lead cae en `bcra_negative_situation`.
 
@@ -66,14 +59,14 @@ Este es el texto que hoy devuelve la clasificacion cuando el lead cae en `bcra_n
 
 Se agrego soporte para guardar tres datos en el lead:
 
-- estado resumido
-- resultado JSON compacto
-- timestamp UTC de consulta
+- snapshot formateado, human-readable y con saltos de linea
+- snapshot raw JSON para auditoria y reuso
+- timestamp ISO UTC de consulta por separado
 
 Variables nuevas:
 
 - `BITRIX24_LEAD_BCRA_STATUS_FIELD`
-- `BITRIX24_LEAD_BCRA_RESULT_FIELD`
+- `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
 - `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 
 Si esas variables no estan configuradas:
@@ -101,7 +94,7 @@ Comportamiento del backfill:
 - corre por `Schedule` cada minuto
 - calcula ventana desde inicio del dia hasta `now` en zona horaria Argentina `UTC-03:00`
 - lista leads via `crm.lead.list`
-- omite leads que ya tienen `BCRA_STATUS`
+- omite leads que ya tienen `BCRA_DATA_RAW`
 - omite leads sin CUIL
 - consulta BCRA para los pendientes
 - persiste snapshot cuando aplica
@@ -163,7 +156,7 @@ En el relevamiento hecho para este documento no muestran diff funcional de conte
 
 ### `form_processor/config.py`
 
-- agrega los tres campos opcionales de storage BCRA
+- agrega los dos campos opcionales de storage BCRA
 - incorpora `has_bcra_storage_fields()`
 - agrega helper `_optional_env()` para variables no obligatorias
 
@@ -177,15 +170,15 @@ En el relevamiento hecho para este documento no muestran diff funcional de conte
 
 - inyecta dependencia opcional `bcra_client`
 - consulta BCRA durante `process_form_body()`, `process_submission()` y `classify_lead()`
-- reutiliza snapshot ya existente si el lead ya fue enriquecido
+- reutiliza snapshot ya existente si el lead ya fue enriquecido y el raw sigue presente
 - fuerza rechazo por `bcra_negative_situation` cuando corresponde
 
 ### `form_processor/bcra_client.py`
 
 - encapsula la llamada HTTP al BCRA
 - traduce respuestas `200`, `400`, `404`, `429` y errores temporales
-- construye un `summary` compacto y persistible
-- define si corresponde rechazo y cual es el `status_field_value`
+- construye un texto formateado para columna Bitrix y un JSON raw persistible
+- consulta el endpoint actual `Deudas` en lugar de `Historicas`
 
 ### `form_processor/bcra_service.py`
 
@@ -200,8 +193,8 @@ En el relevamiento hecho para este documento no muestran diff funcional de conte
 
 ### Configuracion e infra
 
-- `.env.example` y `docker-compose.yml` agregan las tres variables nuevas
-- `kestra-runtime.env.enc` se actualiza para incluir esas claves cifradas
+- `.env.example` y `docker-compose.yml` quedan en tres variables BCRA para Bitrix
+- `kestra-runtime.env.enc` mantiene la clave de `checked_at` junto con `status` y `data_raw`
 - `docs/kestra-configuration.md` documenta el alta de variables y el comportamiento del backfill cuando faltan
 
 ## Cobertura De Tests
@@ -235,7 +228,7 @@ Resultado:
 Para que la feature quede completa en runtime hacen falta estos prerequisitos:
 
 1. crear o confirmar en Bitrix24 los tres campos custom usados para snapshot
-2. cargar sus IDs reales en `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`, `ENV_BITRIX24_LEAD_BCRA_RESULT_FIELD` y `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
+2. cargar sus IDs reales en `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`, `ENV_BITRIX24_LEAD_BCRA_DATA_RAW_FIELD` y `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 3. desplegar las namespace files y el flow nuevo `bitrix24_bcra_backfill`
 4. validar en dev que el webhook sigue respondiendo igual hacia frontend
 5. validar en dev que el lead guarda snapshot cuando hay respuesta persistible

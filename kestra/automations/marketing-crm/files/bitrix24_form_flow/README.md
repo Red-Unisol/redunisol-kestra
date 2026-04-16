@@ -107,6 +107,9 @@ Opcionales para override de campos del lead:
 - `BITRIX24_LEAD_PAYMENT_BANK_FIELD`
 - `BITRIX24_LEAD_PROVINCE_FIELD`
 - `BITRIX24_LEAD_SOURCE_FIELD`
+- `BITRIX24_LEAD_BCRA_STATUS_FIELD`
+- `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
+- `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 - `BITRIX24_TIMEOUT_SECONDS`
 - `BITRIX24_LEAD_UTM_SOURCE_FIELD`
 - `BITRIX24_LEAD_UTM_MEDIUM_FIELD`
@@ -126,6 +129,9 @@ Valores actualmente confirmados en el CRM:
 - `BITRIX24_LEAD_PROVINCE_FIELD=UF_CRM_64E65D2B2136C`
 - `BITRIX24_LEAD_SOURCE_FIELD=UF_CRM_1722365051`
 - `BITRIX24_LEAD_REJECTION_REASON_FIELD=UF_CRM_REJECTION_REASON`
+- `BITRIX24_LEAD_BCRA_STATUS_FIELD=UF_CRM_BCRA_STATUS`
+- `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD=UF_CRM_BCRA_DATA_RAW`
+- `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD=UF_CRM_BCRA_CHECKED_AT`
 - `BITRIX24_LEAD_UTM_SOURCE_FIELD=UTM_SOURCE`
 - `BITRIX24_LEAD_UTM_MEDIUM_FIELD=UTM_MEDIUM`
 - `BITRIX24_LEAD_UTM_CAMPAIGN_FIELD=UTM_CAMPAIGN`
@@ -138,6 +144,10 @@ Comportamiento esperado al rechazar:
 
 - el lead pasa al estado `RESULTADO PERDIDO`
 - el motivo específico se guarda en `Motivo Rechazo` usando el enum del CRM
+- si estan configurados los campos BCRA, el lead guarda un snapshot actual del BCRA en tres columnas:
+- `UF_CRM_BCRA_STATUS`: texto formateado y legible
+- `UF_CRM_BCRA_DATA_RAW`: JSON raw de la consulta
+- `UF_CRM_BCRA_CHECKED_AT`: timestamp ISO UTC de la consulta
 
 Comportamiento esperado al crear el lead:
 
@@ -182,6 +192,9 @@ Los entrypoints:
 
 - `bitrix24_form_flow/form_processor/qualification.py`
   Implementa la lógica pura de calificación, separada de Bitrix24.
+
+- `bitrix24_form_flow/form_processor/bcra_client.py`
+  Consulta el endpoint actual `Deudas` del BCRA y arma el snapshot formateado + raw.
 
 - `bitrix24_form_flow/form_processor/bitrix_client.py`
   Wrapper de llamadas HTTP a Bitrix24.

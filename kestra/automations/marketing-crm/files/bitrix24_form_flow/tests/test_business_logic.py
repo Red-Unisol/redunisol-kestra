@@ -100,7 +100,7 @@ class FakeBcraClient:
         self.results_by_identification = results_by_identification
         self.calls: list[str] = []
 
-    def consult_historicas(self, identification: str) -> BcraConsultationResult:
+    def consult_snapshot(self, identification: str) -> BcraConsultationResult:
         self.calls.append(identification)
         return self.results_by_identification[identification]
 
@@ -118,7 +118,7 @@ class BusinessLogicTests(unittest.TestCase):
             "BITRIX24_LEAD_STATUS_REJECTED": "UC_1P8I07",
             "BITRIX24_LEAD_REJECTION_REASON_FIELD": "UF_CRM_REJECTION_REASON",
             "BITRIX24_LEAD_BCRA_STATUS_FIELD": "UF_CRM_BCRA_STATUS",
-            "BITRIX24_LEAD_BCRA_RESULT_FIELD": "UF_CRM_BCRA_RESULT",
+            "BITRIX24_LEAD_BCRA_DATA_RAW_FIELD": "UF_CRM_BCRA_DATA_RAW",
             "BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD": "UF_CRM_BCRA_CHECKED_AT",
         }
 
@@ -136,16 +136,35 @@ class BusinessLogicTests(unittest.TestCase):
             checked_at="2026-04-15T20:30:00+00:00",
             identification=identification,
             http_status=http_status,
-            status_field_value=status_field_value,
+            formatted_field_value=(
+                None
+                if status_field_value is None
+                else "\n".join(
+                    [
+                        "Consulta BCRA",
+                        "Fecha: 2026-04-15T20:30:00+00:00",
+                        f"CUIL: {identification}",
+                        f"Estado: {status_field_value}",
+                    ]
+                )
+            ),
+            raw_field_value=(
+                None
+                if status_field_value is None
+                else json.dumps(
+                    {
+                        "outcome": outcome,
+                        "http_status": http_status,
+                        "identification": identification,
+                        "should_reject": should_reject,
+                    },
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                )
+            ),
             should_reject=should_reject,
             negative_entity_count=2 if should_reject else 0,
             negative_entities=("BANCO A", "BANCO B") if should_reject else (),
-            summary={
-                "outcome": outcome,
-                "http_status": http_status,
-                "identification": identification,
-                "should_reject": should_reject,
-            },
             message=None,
         )
 
@@ -257,10 +276,11 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[3][1]["fields"]["UTM_CAMPAIGN"], "policias-abril")
         self.assertEqual(client.calls[3][1]["fields"]["UTM_TERM"], "prestamo policia cordoba")
         self.assertEqual(client.calls[3][1]["fields"]["UTM_CONTENT"], "anuncio-a")
-        self.assertEqual(client.leads[202]["UF_CRM_BCRA_STATUS"], "OK")
+        self.assertIn("Consulta BCRA", client.leads[202]["UF_CRM_BCRA_STATUS"])
+        self.assertIn("Estado: OK", client.leads[202]["UF_CRM_BCRA_STATUS"])
         self.assertEqual(client.leads[202]["UF_CRM_BCRA_CHECKED_AT"], "2026-04-15T20:30:00+00:00")
         self.assertEqual(
-            json.loads(client.leads[202]["UF_CRM_BCRA_RESULT"])["identification"],
+            json.loads(client.leads[202]["UF_CRM_BCRA_DATA_RAW"])["identification"],
             "20876543219",
         )
 
@@ -447,7 +467,7 @@ class BusinessLogicTests(unittest.TestCase):
         last_method, last_payload = client.calls[-1]
         self.assertEqual(last_method, "crm.lead.update")
         self.assertEqual(last_payload["fields"]["UF_CRM_REJECTION_REASON"], "3935")
-        self.assertEqual(client.leads[202]["UF_CRM_BCRA_STATUS"], "NEGATIVO")
+        self.assertIn("Estado: NEGATIVO", client.leads[202]["UF_CRM_BCRA_STATUS"])
 
     def test_classify_lead_reuses_existing_bcra_snapshot(self) -> None:
         client = FakeBitrixClient()
@@ -466,7 +486,7 @@ class BusinessLogicTests(unittest.TestCase):
             "UF_CRM_LEAD_1711458190312": ["449"],
             "UF_CRM_64E65D2B2136C": "209",
             "UF_CRM_1722365051": "2425",
-            "UF_CRM_BCRA_STATUS": "NEGATIVO",
+            "UF_CRM_BCRA_DATA_RAW": "{\"should_reject\":true}",
         }
         bcra_client = FakeBcraClient({})
 
@@ -491,21 +511,21 @@ class BusinessLogicTests(unittest.TestCase):
             "DATE_CREATE": "2026-04-15T09:00:00-03:00",
             "STATUS_ID": "NEW",
             "UF_CRM_1693840106704": "20876543219",
-            "UF_CRM_BCRA_STATUS": "",
+            "UF_CRM_BCRA_DATA_RAW": "",
         }
         client.leads[502] = {
             "ID": "502",
             "DATE_CREATE": "2026-04-15T09:30:00-03:00",
             "STATUS_ID": "NEW",
             "UF_CRM_1693840106704": "20111111112",
-            "UF_CRM_BCRA_STATUS": "OK",
+            "UF_CRM_BCRA_DATA_RAW": "{\"should_reject\":false}",
         }
         client.leads[503] = {
             "ID": "503",
             "DATE_CREATE": "2026-04-15T10:00:00-03:00",
             "STATUS_ID": "NEW",
             "UF_CRM_1693840106704": "20333333334",
-            "UF_CRM_BCRA_STATUS": "",
+            "UF_CRM_BCRA_DATA_RAW": "",
         }
         bcra_client = FakeBcraClient(
             {
@@ -539,8 +559,8 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(result["skipped_populated_count"], 1)
         self.assertTrue(result["rate_limited"])
         self.assertEqual(bcra_client.calls, ["20876543219", "20333333334"])
-        self.assertEqual(client.leads[501]["UF_CRM_BCRA_STATUS"], "OK")
-        self.assertEqual(client.leads[503].get("UF_CRM_BCRA_STATUS", ""), "")
+        self.assertIn("Estado: OK", client.leads[501]["UF_CRM_BCRA_STATUS"])
+        self.assertEqual(client.leads[503].get("UF_CRM_BCRA_DATA_RAW", ""), "")
 
 
 if __name__ == "__main__":

@@ -23,14 +23,14 @@ def sync_lead_bcra(
     bcra_client: Any | None = None,
 ) -> BcraConsultationResult:
     active_bcra_client = bcra_client or BcraClient(logger)
-    result = active_bcra_client.consult_historicas(str(identification).strip())
+    result = active_bcra_client.consult_snapshot(str(identification).strip())
 
     if result.is_persistable:
         if config.fields.has_bcra_storage_fields():
             update_lead_bcra_snapshot(client, config, lead_id, result, logger)
         else:
             logger.error(
-                "BCRA respondio pero faltan los campos Bitrix para persistir estado, resultado y timestamp."
+                "BCRA respondio pero faltan los campos Bitrix para persistir snapshot formateado y raw."
             )
 
     return result
@@ -58,7 +58,7 @@ def backfill_bcra_for_today(
             "temporary_error_count": 0,
             "rate_limited": False,
             "message": (
-                "Backfill BCRA omitido: faltan los campos Bitrix para status, resultado y timestamp."
+                "Backfill BCRA omitido: faltan los campos Bitrix para snapshot formateado y raw."
             ),
         }
 
@@ -77,7 +77,7 @@ def backfill_bcra_for_today(
             "ID",
             "STATUS_ID",
             config.fields.lead_cuil,
-            config.fields.lead_bcra_status or "",
+            config.fields.lead_bcra_data_raw or "",
         ],
         logger=active_logger,
     )
@@ -100,8 +100,8 @@ def backfill_bcra_for_today(
         if not lead_id:
             continue
 
-        current_bcra_status = _optional_str(lead.get(config.fields.lead_bcra_status or ""))
-        if current_bcra_status is not None:
+        current_bcra_raw = _optional_str(lead.get(config.fields.lead_bcra_data_raw or ""))
+        if current_bcra_raw is not None:
             result["skipped_populated_count"] = int(result["skipped_populated_count"]) + 1
             continue
 

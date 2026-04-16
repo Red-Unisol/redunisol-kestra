@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .bcra_client import BcraConsultationResult
@@ -126,12 +125,8 @@ def update_lead_bcra_snapshot(
 
     logger.info(f"Persistiendo snapshot BCRA en el lead {lead_id}.")
     fields = {
-        config.fields.lead_bcra_status: bcra_result.status_field_value,
-        config.fields.lead_bcra_result: json.dumps(
-            bcra_result.summary,
-            ensure_ascii=True,
-            separators=(",", ":"),
-        ),
+        config.fields.lead_bcra_status: bcra_result.formatted_field_value,
+        config.fields.lead_bcra_data_raw: bcra_result.raw_field_value,
         config.fields.lead_bcra_checked_at: bcra_result.checked_at,
     }
     update_lead_fields(client, lead_id, fields)

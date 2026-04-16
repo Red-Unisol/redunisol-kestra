@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from .bcra_client import BCRA_STATUS_NEGATIVE
+from .bcra_client import (
+    BCRA_STATUS_INVALID_IDENTIFICATION,
+    BCRA_STATUS_NEGATIVE,
+    BCRA_STATUS_NOT_FOUND,
+    BCRA_STATUS_OK,
+)
 from .bcra_service import sync_lead_bcra
 from .bitrix_client import BitrixClient
 from .config import load_config
@@ -166,11 +172,9 @@ def classify_lead(
         submission = build_submission_from_lead(lead, config)
         qualification = evaluate_qualification(submission)
 
-        stored_bcra_status = None
-        if config.fields.lead_bcra_status:
-            stored_bcra_status = _optional_str(lead.get(config.fields.lead_bcra_status))
+        stored_bcra_rejection = _stored_bcra_should_reject(lead, config, active_logger, lead_id_int)
 
-        if stored_bcra_status is None:
+        if stored_bcra_rejection is None:
             bcra_result = sync_lead_bcra(
                 client,
                 config,
@@ -181,16 +185,14 @@ def classify_lead(
             )
             should_reject_by_bcra = bcra_result.should_reject
         else:
-            active_logger.info(f"Lead {lead_id_int} ya tiene snapshot BCRA ({stored_bcra_status}).")
-            should_reject_by_bcra = stored_bcra_status.upper() == BCRA_STATUS_NEGATIVE
+            should_reject_by_bcra = stored_bcra_rejection
 
         if should_reject_by_bcra:
             qualification = QualificationResult(
                 qualified=False,
                 reason="bcra_negative_situation",
                 message=(
-                    "El BCRA informa al menos 2 entidades distintas con situacion 5 "
-                    "en el historial consultado."
+                    "El snapshot actual del BCRA supera el umbral permitido de situaciones 5."
                 ),
                 rejection_label="SIT NEG BCRA",
             )
@@ -236,3 +238,60 @@ def _optional_str(raw_value: object) -> str | None:
         return None
     value = str(raw_value).strip()
     return value or None
+
+
+def _stored_bcra_should_reject(
+    lead: dict[str, Any],
+    config: Any,
+    logger: Logger,
+    lead_id: int,
+) -> bool | None:
+    stored_bcra_raw = None
+    if config.fields.lead_bcra_data_raw:
+        stored_bcra_raw = _optional_str(lead.get(config.fields.lead_bcra_data_raw))
+
+    if stored_bcra_raw is not None:
+        stored_value = _extract_should_reject_from_raw(stored_bcra_raw)
+        if stored_value is not None:
+            logger.info(f"Lead {lead_id} ya tiene snapshot BCRA en campo raw.")
+            return stored_value
+
+    stored_bcra_formatted = None
+    if config.fields.lead_bcra_status:
+        stored_bcra_formatted = _optional_str(lead.get(config.fields.lead_bcra_status))
+
+    if stored_bcra_formatted is None:
+        return None
+
+    legacy_status = stored_bcra_formatted.upper()
+    if legacy_status == BCRA_STATUS_NEGATIVE:
+        logger.info(f"Lead {lead_id} reutiliza snapshot BCRA legacy NEGATIVO.")
+        return True
+
+    if legacy_status in (BCRA_STATUS_OK, BCRA_STATUS_NOT_FOUND, BCRA_STATUS_INVALID_IDENTIFICATION):
+        logger.info(f"Lead {lead_id} reutiliza snapshot BCRA legacy {legacy_status}.")
+        return False
+
+    return None
+
+
+def _extract_should_reject_from_raw(raw_payload: str) -> bool | None:
+    try:
+        parsed = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    if isinstance(parsed.get("should_reject"), bool):
+        return bool(parsed["should_reject"])
+
+    payload = parsed.get("payload")
+    if not isinstance(payload, dict):
+        return None
+
+    if isinstance(payload.get("should_reject"), bool):
+        return bool(payload["should_reject"])
+
+    return None

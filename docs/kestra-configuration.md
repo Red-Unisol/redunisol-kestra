@@ -85,7 +85,7 @@ Ejemplos reales:
 - `ENV_VIMARX_VERIFY_TLS`
 - `ENV_BITRIX24_BASE_URL`
 - `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`
-- `ENV_BITRIX24_LEAD_BCRA_RESULT_FIELD`
+- `ENV_BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
 - `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 - `ENV_BITRIX24_TIMEOUT_SECONDS`
 - `SECRET_BITRIX24_WEBHOOK_PATH`
@@ -126,17 +126,17 @@ La UI no deberia ser la fuente normal de configuracion persistente, porque rompe
 
 ## Variables Nuevas Para Snapshot BCRA En Marketing CRM
 
-La integracion de `marketing-crm` con Central de Deudores agrega tres variables no sensibles nuevas para persistir el snapshot en Bitrix24:
+La integracion de `marketing-crm` con Central de Deudores usa tres variables no sensibles para persistir el snapshot en Bitrix24:
 
 - `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`
-- `ENV_BITRIX24_LEAD_BCRA_RESULT_FIELD`
+- `ENV_BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
 - `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 
 Uso previsto:
 
-- `status`: texto corto para estados como `OK`, `SIN_DATOS`, `NEGATIVO` o `IDENTIFICACION_INVALIDA`
-- `result`: payload JSON compacto con el resumen de la consulta
-- `checked_at`: timestamp ISO UTC de la ultima consulta
+- `status`: texto human-readable con whitespace para mostrar las situaciones en una sola columna de Bitrix
+- `result`: payload JSON raw de la consulta, reutilizable para evitar reconsultas
+- `checked_at`: timestamp ISO UTC de la consulta persistido por separado
 
 Importante:
 
