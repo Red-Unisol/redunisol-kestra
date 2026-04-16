@@ -36,6 +36,7 @@ class BitrixFieldsConfig:
     lead_source: str
     lead_rejection_reason: str
     lead_bcra_status: str | None
+    lead_bcra_result: str | None
     lead_bcra_data_raw: str | None
     lead_bcra_checked_at: str | None
     lead_utm_source: str
@@ -49,6 +50,7 @@ class BitrixFieldsConfig:
             field_name
             for field_name in (
                 self.lead_bcra_status,
+                self.lead_bcra_result,
                 self.lead_bcra_data_raw,
                 self.lead_bcra_checked_at,
             )
@@ -111,6 +113,7 @@ def load_config(env: dict[str, str] | None = None) -> AppConfig:
                 DEFAULT_LEAD_FIELDS["rejection_reason"],
             ),
             lead_bcra_status=_optional_env(source, "BITRIX24_LEAD_BCRA_STATUS_FIELD"),
+            lead_bcra_result=_optional_env(source, "BITRIX24_LEAD_BCRA_RESULT_FIELD"),
             lead_bcra_data_raw=_optional_env(source, "BITRIX24_LEAD_BCRA_DATA_RAW_FIELD"),
             lead_bcra_checked_at=_optional_env(source, "BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD"),
             lead_utm_source=source.get(

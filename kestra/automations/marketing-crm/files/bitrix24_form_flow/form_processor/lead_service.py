@@ -129,6 +129,8 @@ def update_lead_bcra_snapshot(
         config.fields.lead_bcra_data_raw: bcra_result.raw_field_value,
         config.fields.lead_bcra_checked_at: bcra_result.checked_at,
     }
+    if config.fields.lead_bcra_result and bcra_result.summary_field_value is not None:
+        fields[config.fields.lead_bcra_result] = bcra_result.summary_field_value
     update_lead_fields(client, lead_id, fields)
 
 

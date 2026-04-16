@@ -11,7 +11,7 @@ La feature implementada agrega una integracion con la API publica de Central de 
 El comportamiento nuevo queda dividido en dos partes:
 
 - clasificacion online: al crear o reclasificar un lead, se consulta BCRA usando el CUIL y se decide si corresponde rechazo por situacion negativa
-- backfill programado: un flow nuevo recorre los leads creados en el dia que todavia no tienen snapshot BCRA y les completa un campo legible, otro raw y el timestamp separado
+- backfill programado: un flow nuevo recorre los leads creados en el dia que todavia no tienen snapshot BCRA y les completa un campo legible, un resumen abreviado, otro raw y el timestamp separado
 
 Ademas de decidir rechazo, la feature persiste un snapshot compacto en Bitrix24 cuando existen los tres campos Bitrix elegidos para almacenar ese resultado.
 
@@ -60,12 +60,14 @@ Este es el texto que hoy devuelve la clasificacion cuando el lead cae en `bcra_n
 Se agrego soporte para guardar tres datos en el lead:
 
 - snapshot formateado, human-readable y con saltos de linea
+- resumen abreviado con conteo por situacion
 - snapshot raw JSON para auditoria y reuso
-- timestamp ISO UTC de consulta por separado
+- timestamp ISO 8601 en hora Argentina de consulta por separado
 
 Variables nuevas:
 
 - `BITRIX24_LEAD_BCRA_STATUS_FIELD`
+- `BITRIX24_LEAD_BCRA_RESULT_FIELD`
 - `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
 - `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 
@@ -188,13 +190,13 @@ En el relevamiento hecho para este documento no muestran diff funcional de conte
 
 ### Flows YAML
 
-- `bitrix24_form_webhook.yaml` y `bitrix24_lead_classification.yaml` ahora propagan las tres env vars BCRA al contenedor Python
+- `bitrix24_form_webhook.yaml` y `bitrix24_lead_classification.yaml` ahora propagan las cuatro env vars BCRA al contenedor Python
 - `bitrix24_bcra_backfill.yaml` agrega el flow programado para completar snapshots del dia
 
 ### Configuracion e infra
 
-- `.env.example` y `docker-compose.yml` quedan en tres variables BCRA para Bitrix
-- `kestra-runtime.env.enc` mantiene la clave de `checked_at` junto con `status` y `data_raw`
+- `.env.example` y `docker-compose.yml` quedan en cuatro variables BCRA para Bitrix
+- `kestra-runtime.env.enc` mantiene la clave de `checked_at` junto con `status`, `result` y `data_raw`
 - `docs/kestra-configuration.md` documenta el alta de variables y el comportamiento del backfill cuando faltan
 
 ## Cobertura De Tests
@@ -227,8 +229,8 @@ Resultado:
 
 Para que la feature quede completa en runtime hacen falta estos prerequisitos:
 
-1. crear o confirmar en Bitrix24 los tres campos custom usados para snapshot
-2. cargar sus IDs reales en `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`, `ENV_BITRIX24_LEAD_BCRA_DATA_RAW_FIELD` y `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
+1. crear o confirmar en Bitrix24 los cuatro campos custom usados para snapshot
+2. cargar sus IDs reales en `ENV_BITRIX24_LEAD_BCRA_STATUS_FIELD`, `ENV_BITRIX24_LEAD_BCRA_RESULT_FIELD`, `ENV_BITRIX24_LEAD_BCRA_DATA_RAW_FIELD` y `ENV_BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 3. desplegar las namespace files y el flow nuevo `bitrix24_bcra_backfill`
 4. validar en dev que el webhook sigue respondiendo igual hacia frontend
 5. validar en dev que el lead guarda snapshot cuando hay respuesta persistible

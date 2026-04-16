@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,6 +22,7 @@ BCRA_STATUS_NEGATIVE = "NEGATIVO"
 BCRA_STATUS_NOT_FOUND = "SIN_DATOS"
 BCRA_STATUS_INVALID_IDENTIFICATION = "IDENTIFICACION_INVALIDA"
 BCRA_NEGATIVE_ENTITY_THRESHOLD = 4
+ARGENTINA_TIMEZONE = timezone(timedelta(hours=-3))
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class BcraConsultationResult:
     identification: str
     http_status: int | None
     formatted_field_value: str | None
+    summary_field_value: str | None
     raw_field_value: str | None
     should_reject: bool
     negative_entity_count: int
@@ -51,7 +53,7 @@ class BcraClient:
         self.logger = logger
 
     def consult_snapshot(self, identification: str) -> BcraConsultationResult:
-        checked_at = _utc_timestamp()
+        checked_at = _argentina_timestamp()
         identification = str(identification).strip()
         url = BCRA_BASE_URL + BCRA_CURRENT_SNAPSHOT_PATH.format(identificacion=identification)
 
@@ -164,6 +166,10 @@ def _success_result(
             entities=entities,
             status_label=status_label,
         ),
+        summary_field_value=_format_success_summary(
+            entities=entities,
+            status_label=status_label,
+        ),
         raw_field_value=json.dumps(raw_snapshot, ensure_ascii=True, separators=(",", ":")),
         should_reject=should_reject,
         negative_entity_count=negative_entity_count,
@@ -208,6 +214,10 @@ def _result_from_http_error(
                 status_label=BCRA_STATUS_NOT_FOUND,
                 message=message,
             ),
+            summary_field_value=_format_non_success_summary(
+                status_label=BCRA_STATUS_NOT_FOUND,
+                message=message,
+            ),
             raw_field_value=json.dumps(raw_snapshot, ensure_ascii=True, separators=(",", ":")),
             should_reject=False,
             negative_entity_count=0,
@@ -229,6 +239,10 @@ def _result_from_http_error(
                 status_label=BCRA_STATUS_INVALID_IDENTIFICATION,
                 message=message,
             ),
+            summary_field_value=_format_non_success_summary(
+                status_label=BCRA_STATUS_INVALID_IDENTIFICATION,
+                message=message,
+            ),
             raw_field_value=json.dumps(raw_snapshot, ensure_ascii=True, separators=(",", ":")),
             should_reject=False,
             negative_entity_count=0,
@@ -244,6 +258,7 @@ def _result_from_http_error(
             identification=identification,
             http_status=http_status,
             formatted_field_value=None,
+            summary_field_value=None,
             raw_field_value=None,
             should_reject=False,
             negative_entity_count=0,
@@ -259,6 +274,7 @@ def _result_from_http_error(
         identification=identification,
         http_status=http_status,
         formatted_field_value=None,
+        summary_field_value=None,
         raw_field_value=None,
         should_reject=False,
         negative_entity_count=0,
@@ -279,6 +295,7 @@ def _temporary_error_result(
         identification=identification,
         http_status=None,
         formatted_field_value=None,
+        summary_field_value=None,
         raw_field_value=None,
         should_reject=False,
         negative_entity_count=0,
@@ -403,6 +420,48 @@ def _format_non_success_snapshot(
     )
 
 
+def _format_success_summary(
+    *,
+    entities: list[dict[str, Any]],
+    status_label: str,
+) -> str:
+    max_situation = max(
+        5,
+        max(
+            (
+                entity["situacion"]
+                for entity in entities
+                if isinstance(entity.get("situacion"), int)
+            ),
+            default=0,
+        ),
+    )
+    situation_counts = {situation: 0 for situation in range(1, max_situation + 1)}
+    for entity in entities:
+        situation = entity.get("situacion")
+        if isinstance(situation, int) and situation in situation_counts:
+            situation_counts[situation] += 1
+
+    lines = [f"Estado: {status_label}"]
+    for situation in range(1, max_situation + 1):
+        lines.append(f"Situacion {situation}: {situation_counts[situation]}")
+
+    return "\n".join(lines)
+
+
+def _format_non_success_summary(
+    *,
+    status_label: str,
+    message: str,
+) -> str:
+    return "\n".join(
+        [
+            f"Estado: {status_label}",
+            f"Detalle: {message}",
+        ]
+    )
+
+
 def _extract_error_messages(payload: Any) -> list[str]:
     if isinstance(payload, dict):
         raw_messages = payload.get("errorMessages")
@@ -435,5 +494,11 @@ def _optional_int(raw_value: Any) -> int | None:
     return int(str(raw_value))
 
 
-def _utc_timestamp() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+def _argentina_timestamp(now: datetime | None = None) -> str:
+    current_time = now or datetime.now(ARGENTINA_TIMEZONE)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=ARGENTINA_TIMEZONE)
+    else:
+        current_time = current_time.astimezone(ARGENTINA_TIMEZONE)
+
+    return current_time.replace(microsecond=0).isoformat()

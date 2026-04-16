@@ -108,6 +108,7 @@ Opcionales para override de campos del lead:
 - `BITRIX24_LEAD_PROVINCE_FIELD`
 - `BITRIX24_LEAD_SOURCE_FIELD`
 - `BITRIX24_LEAD_BCRA_STATUS_FIELD`
+- `BITRIX24_LEAD_BCRA_RESULT_FIELD`
 - `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD`
 - `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD`
 - `BITRIX24_TIMEOUT_SECONDS`
@@ -130,6 +131,7 @@ Valores actualmente confirmados en el CRM:
 - `BITRIX24_LEAD_SOURCE_FIELD=UF_CRM_1722365051`
 - `BITRIX24_LEAD_REJECTION_REASON_FIELD=UF_CRM_REJECTION_REASON`
 - `BITRIX24_LEAD_BCRA_STATUS_FIELD=UF_CRM_BCRA_STATUS`
+- `BITRIX24_LEAD_BCRA_RESULT_FIELD=UF_CRM_BCRA_RESULT`
 - `BITRIX24_LEAD_BCRA_DATA_RAW_FIELD=UF_CRM_BCRA_DATA_RAW`
 - `BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD=UF_CRM_BCRA_CHECKED_AT`
 - `BITRIX24_LEAD_UTM_SOURCE_FIELD=UTM_SOURCE`
@@ -144,10 +146,11 @@ Comportamiento esperado al rechazar:
 
 - el lead pasa al estado `RESULTADO PERDIDO`
 - el motivo específico se guarda en `Motivo Rechazo` usando el enum del CRM
-- si estan configurados los campos BCRA, el lead guarda un snapshot actual del BCRA en tres columnas:
-- `UF_CRM_BCRA_STATUS`: texto formateado y legible
-- `UF_CRM_BCRA_DATA_RAW`: JSON raw de la consulta
-- `UF_CRM_BCRA_CHECKED_AT`: timestamp ISO UTC de la consulta
+- si estan configurados los campos BCRA, el lead guarda un snapshot actual del BCRA en cuatro columnas:
+- `UF_CRM_BCRA_STATUS`: texto formateado y legible, una entidad por linea
+- `UF_CRM_BCRA_RESULT`: resumen abreviado con conteo por situacion
+- `UF_CRM_BCRA_DATA_RAW`: JSON raw de la consulta actual, reutilizable para auditoria y reglas
+- `UF_CRM_BCRA_CHECKED_AT`: timestamp ISO 8601 en hora Argentina de la consulta
 
 Comportamiento esperado al crear el lead:
 

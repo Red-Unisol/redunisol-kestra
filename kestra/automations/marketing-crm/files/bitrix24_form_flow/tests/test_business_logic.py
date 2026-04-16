@@ -10,7 +10,7 @@ from bitrix24_form_flow.form_processor.business_logic import (
     process_form_body,
     process_submission,
 )
-from bitrix24_form_flow.form_processor.bcra_client import BcraConsultationResult
+from bitrix24_form_flow.form_processor.bcra_client import BcraConsultationResult, _argentina_timestamp
 from bitrix24_form_flow.form_processor.bcra_service import backfill_bcra_for_today
 from bitrix24_form_flow.form_processor.input_parser import normalize_business_input, parse_body
 from bitrix24_form_flow.form_processor.qualification import evaluate_qualification
@@ -118,6 +118,7 @@ class BusinessLogicTests(unittest.TestCase):
             "BITRIX24_LEAD_STATUS_REJECTED": "UC_1P8I07",
             "BITRIX24_LEAD_REJECTION_REASON_FIELD": "UF_CRM_REJECTION_REASON",
             "BITRIX24_LEAD_BCRA_STATUS_FIELD": "UF_CRM_BCRA_STATUS",
+            "BITRIX24_LEAD_BCRA_RESULT_FIELD": "UF_CRM_BCRA_RESULT",
             "BITRIX24_LEAD_BCRA_DATA_RAW_FIELD": "UF_CRM_BCRA_DATA_RAW",
             "BITRIX24_LEAD_BCRA_CHECKED_AT_FIELD": "UF_CRM_BCRA_CHECKED_AT",
         }
@@ -131,9 +132,10 @@ class BusinessLogicTests(unittest.TestCase):
         outcome: str = "ok",
         http_status: int | None = 200,
     ) -> BcraConsultationResult:
+        checked_at = "2026-04-15T17:30:00-03:00"
         return BcraConsultationResult(
             outcome=outcome,
-            checked_at="2026-04-15T20:30:00+00:00",
+            checked_at=checked_at,
             identification=identification,
             http_status=http_status,
             formatted_field_value=(
@@ -142,9 +144,23 @@ class BusinessLogicTests(unittest.TestCase):
                 else "\n".join(
                     [
                         "Consulta BCRA",
-                        "Fecha: 2026-04-15T20:30:00+00:00",
+                        f"Fecha: {checked_at}",
                         f"CUIL: {identification}",
                         f"Estado: {status_field_value}",
+                    ]
+                )
+            ),
+            summary_field_value=(
+                None
+                if status_field_value is None
+                else "\n".join(
+                    [
+                        f"Estado: {status_field_value}",
+                        "Situacion 1: 0",
+                        "Situacion 2: 0",
+                        "Situacion 3: 0",
+                        "Situacion 4: 0",
+                        f"Situacion 5: {2 if should_reject else 0}",
                     ]
                 )
             ),
@@ -167,6 +183,11 @@ class BusinessLogicTests(unittest.TestCase):
             negative_entities=("BANCO A", "BANCO B") if should_reject else (),
             message=None,
         )
+
+    def test_argentina_timestamp_converts_from_utc(self) -> None:
+        checked_at = _argentina_timestamp(datetime(2026, 4, 15, 20, 30, 0, tzinfo=timezone.utc))
+
+        self.assertEqual(checked_at, "2026-04-15T17:30:00-03:00")
 
     def test_parse_form_urlencoded_body(self) -> None:
         payload = parse_body(
@@ -278,7 +299,9 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(client.calls[3][1]["fields"]["UTM_CONTENT"], "anuncio-a")
         self.assertIn("Consulta BCRA", client.leads[202]["UF_CRM_BCRA_STATUS"])
         self.assertIn("Estado: OK", client.leads[202]["UF_CRM_BCRA_STATUS"])
-        self.assertEqual(client.leads[202]["UF_CRM_BCRA_CHECKED_AT"], "2026-04-15T20:30:00+00:00")
+        self.assertIn("Situacion 1: 0", client.leads[202]["UF_CRM_BCRA_RESULT"])
+        self.assertIn("Situacion 5: 0", client.leads[202]["UF_CRM_BCRA_RESULT"])
+        self.assertEqual(client.leads[202]["UF_CRM_BCRA_CHECKED_AT"], "2026-04-15T17:30:00-03:00")
         self.assertEqual(
             json.loads(client.leads[202]["UF_CRM_BCRA_DATA_RAW"])["identification"],
             "20876543219",
@@ -468,6 +491,7 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(last_method, "crm.lead.update")
         self.assertEqual(last_payload["fields"]["UF_CRM_REJECTION_REASON"], "3935")
         self.assertIn("Estado: NEGATIVO", client.leads[202]["UF_CRM_BCRA_STATUS"])
+        self.assertIn("Situacion 5: 2", client.leads[202]["UF_CRM_BCRA_RESULT"])
 
     def test_classify_lead_reuses_existing_bcra_snapshot(self) -> None:
         client = FakeBitrixClient()
