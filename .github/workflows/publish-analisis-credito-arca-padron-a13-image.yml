@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
     paths:
       - 'kestra/automations/analisis-credito/docker/arca-padron-a13/**'
       - 'kestra/automations/analisis-credito/flows/consulta_padron_a13.yaml'
