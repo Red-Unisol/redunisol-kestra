@@ -39,15 +39,9 @@ tasks:
     commands:
       - python -m bitrix_crm_negociaciones.kestra_webhook_entrypoint
 
-  - id: leer_plan_existente
-    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' }}"
-    type: io.kestra.plugin.core.kv.Get
-    key: "{{ outputs.procesar_webhook.vars.plan_key }}"
-    errorOnMissing: false
-
   - id: guardar_plan_borrador
     type: io.kestra.plugin.core.kv.Set
-    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and (outputs.leer_plan_existente.value == null or outputs.leer_plan_existente.value.status != 'ready') }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' }}"
     key: "{{ outputs.procesar_webhook.vars.plan_key }}"
     value: "{{ outputs.procesar_webhook.vars.plan_json_draft }}"
     kvType: JSON
@@ -56,7 +50,7 @@ tasks:
 
   - id: programar_accion_1
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_1_enabled and (outputs.leer_plan_existente.value == null or outputs.leer_plan_existente.value.status != 'ready') }}"
+    runIf: "{{ outputs.procesar_webhook.vars.action_1_enabled }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_1_due_at }}"
@@ -67,7 +61,7 @@ tasks:
 
   - id: programar_accion_2
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_2_enabled and (outputs.leer_plan_existente.value == null or outputs.leer_plan_existente.value.status != 'ready') }}"
+    runIf: "{{ outputs.procesar_webhook.vars.action_2_enabled }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_2_due_at }}"
@@ -78,7 +72,7 @@ tasks:
 
   - id: programar_accion_3
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_3_enabled and (outputs.leer_plan_existente.value == null or outputs.leer_plan_existente.value.status != 'ready') }}"
+    runIf: "{{ outputs.procesar_webhook.vars.action_3_enabled }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_3_due_at }}"
@@ -89,7 +83,7 @@ tasks:
 
   - id: marcar_plan_listo
     type: io.kestra.plugin.core.kv.Set
-    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and (outputs.leer_plan_existente.value == null or outputs.leer_plan_existente.value.status != 'ready') }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' }}"
     key: "{{ outputs.procesar_webhook.vars.plan_key }}"
     value: "{{ outputs.procesar_webhook.vars.plan_json_ready }}"
     kvType: JSON
