@@ -31,10 +31,10 @@ tasks:
     beforeCommands:
       - pip install kestra > /dev/null
     env:
+      ARCA_RESOLVED_NOMBRE: "{{ outputs.consultar_identidad.outputs.nombre ?? '' }}"
+      ARCA_RESOLVED_APELLIDO: "{{ outputs.consultar_identidad.outputs.apellido ?? '' }}"
+      ARCA_RESOLVED_RAZON_SOCIAL: "{{ outputs.consultar_identidad.outputs.razon_social ?? '' }}"
       TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
-      ARCA_RESOLVED_NOMBRE: "{{ outputs.consultar_identidad.outputs.nombre }}"
-      ARCA_RESOLVED_APELLIDO: "{{ outputs.consultar_identidad.outputs.apellido }}"
-      ARCA_RESOLVED_RAZON_SOCIAL: "{{ outputs.consultar_identidad.outputs.razon_social }}"
     commands:
       - python -m bitrix24_form_flow.kestra_form_prequalification_entrypoint
 
