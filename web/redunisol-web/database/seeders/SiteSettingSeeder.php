@@ -17,7 +17,13 @@ class SiteSettingSeeder extends Seeder
             ['key' => 'organization_description',  'value' => 'Red Unisol es el resultado de un trabajo conjunto de Asociación Mutual Celesol de Servicios Integrales y Educativos y la Asociación Mutual Fiat Concord, que han mancomunado sus visiones y esfuerzos a los efectos de conformar una agrupación de mutuales que conlleve una estructura de servicios mutuales a los socios de ambas entidades.'],
             ['key' => 'contact_email',             'value' => 'info@redunisol.com.ar'],
             ['key' => 'contact_phone',             'value' => ''],
+            ['key' => 'whatsapp_phone',            'value' => ''],
+            ['key' => 'whatsapp_message',          'value' => 'Hola, quisiera recibir información sobre los préstamos.'],
             ['key' => 'contact_address',           'value' => 'Córdoba, Argentina'],
+            // Map fields: texto legible para mostrar y enlace a Google Maps
+            ['key' => 'map_address',               'value' => ''],
+            ['key' => 'map_url',                   'value' => ''],
+            ['key' => 'show_map',                  'value' => '1'],
             ['key' => 'facebook_url',              'value' => 'https://www.facebook.com/redunisol'],
             ['key' => 'instagram_url',             'value' => 'https://www.instagram.com/redunisol_prestamos/'],
             ['key' => 'linkedin_url',              'value' => 'https://www.linkedin.com/company/redunisol/'],

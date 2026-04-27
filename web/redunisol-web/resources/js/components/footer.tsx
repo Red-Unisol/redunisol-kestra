@@ -1,10 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
+
 import {
     FacebookLogo,
     InstagramLogo,
     LinkedinLogo,
+    MapPin as MapPinIcon,
     YoutubeLogo,
 } from '@phosphor-icons/react';
+import WhatsAppButton from './WhatsAppButton';
 
 interface Regulator {
     id: number;
@@ -93,8 +96,8 @@ const FALLBACK_REGULATORS: Regulator[] = [
 
 function RegulatorCard({ reg }: { reg: Regulator }) {
     return (
-        <div>
-            <p className="mb-4 text-xs font-bold tracking-widest text-gray-400 uppercase">
+        <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5">
+            <p className="mb-4 text-xs font-bold tracking-widest text-gray-600 uppercase">
                 {reg.short_name ?? reg.name}
             </p>
 
@@ -102,18 +105,36 @@ function RegulatorCard({ reg }: { reg: Regulator }) {
                 <img
                     src={`/storage/${reg.logo_path}`}
                     alt={reg.short_name ?? reg.name}
-                    className="mb-3 h-10 w-auto object-contain grayscale"
+                    className="mb-4 h-8 w-auto object-contain"
                 />
             )}
 
-            <ul className="space-y-1 text-xs text-gray-500">
-                {reg.cuit && <li>CUIT {reg.cuit}</li>}
+            <ul className="space-y-2 text-xs text-gray-600">
+                {reg.cuit && (
+                    <li className="flex items-start gap-2">
+                        <span className="text-gray-400">•</span>
+                        <span>
+                            <span className="font-semibold">CUIT:</span>{' '}
+                            {reg.cuit}
+                        </span>
+                    </li>
+                )}
                 {reg.inaes_mat && (
-                    <li>Regulada por el INAES, Mat. N° {reg.inaes_mat}</li>
+                    <li className="flex items-start gap-2">
+                        <span className="text-gray-400">•</span>
+                        <span>
+                            <span className="font-semibold">INAES:</span> Mat.
+                            N° {reg.inaes_mat}
+                        </span>
+                    </li>
                 )}
                 {reg.bcra_code && (
-                    <li>
-                        Proveedor No Financiero BCRA, Cód. N° {reg.bcra_code}
+                    <li className="flex items-start gap-2">
+                        <span className="text-gray-400">•</span>
+                        <span>
+                            <span className="font-semibold">BCRA:</span> Cód. N°{' '}
+                            {reg.bcra_code}
+                        </span>
                     </li>
                 )}
             </ul>
@@ -123,9 +144,10 @@ function RegulatorCard({ reg }: { reg: Regulator }) {
                     href={reg.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#6BAF92] transition-opacity hover:opacity-70"
+                    className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 transition-all hover:gap-3 hover:text-emerald-700"
                 >
-                    Data Fiscal →
+                    Data Fiscal
+                    <span>→</span>
                 </a>
             )}
         </div>
@@ -139,7 +161,6 @@ export default function Footer() {
             ? siteData.regulators
             : FALLBACK_REGULATORS;
     const settings = siteData?.settings ?? {};
-    const disclaimer = settings['legal_disclaimer'] ?? '';
 
     // Build BCRA statement dynamically from regulator data
     const bcraStatement =
@@ -151,60 +172,63 @@ export default function Footer() {
     return (
         <footer className="w-full">
             {/* ── BCRA Banner ── */}
-            <div className="bg-[#1F2A37] px-8 py-3 text-center">
-                <p className="text-xs text-gray-300">{bcraStatement}</p>
+            <div className="border-t-4 border-emerald-600 bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4 text-center shadow-md">
+                <p className="text-xs leading-relaxed text-gray-200">
+                    {bcraStatement}
+                </p>
             </div>
 
-            {/* ── Legal Links + Disclaimer ──
-            <div className="border-t border-gray-200 bg-gray-50 px-8 py-10">
-                <div className="mx-auto max-w-5xl">
-                    <div className="mb-6 flex flex-wrap items-center justify-center gap-3 border-b border-gray-200 pb-6">
-                        {legalLinks.map((link) => (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 hover:underline"
-                            >
-                                {link.label}
-                            </Link>
-                        ))}
-                        <span className="hidden text-gray-300 sm:inline">
-                            |
-                        </span>
-                        <Link
-                            href="/"
-                            className="rounded-lg bg-[#1F2A37] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#2d3f54]"
-                        >
-                            Solicita tu crédito
-                        </Link>
-                    </div>
-
-                    {disclaimer && (
-                        <p className="text-center text-[11px] leading-relaxed text-gray-400">
-                            {disclaimer}
-                        </p>
-                    )}
-                </div>
-            </div>*/}
-
-            {/* ── Main Footer ── */}
-            <div className="bg-white px-8 py-12">
-                <div className="mx-auto max-w-5xl">
-                    <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-                        {/* Col 1: Brand */}
-                        <div>
+            {/* ── Main Footer Content ── */}
+            <div className="bg-white px-6 py-16 lg:px-8">
+                <div className="mx-auto max-w-7xl">
+                    {/* Grid principal */}
+                    <div className="grid gap-12 md:grid-cols-12 lg:gap-16">
+                        {/* Col 1: Brand & Info (3 cols) */}
+                        <div className="md:col-span-3">
                             <img
                                 src="/images/general/t1JdNn2n4csoI8qGYVfVNKs7w.png"
                                 alt="UNISOL"
-                                className="mb-4 h-10 w-auto"
+                                className="mb-6 h-12 w-auto"
                             />
-                            <p className="text-xs leading-relaxed text-gray-500">
+                            <p className="mb-6 text-sm leading-relaxed text-gray-600">
                                 UNISOL y el logo de UNISOL son marcas
                                 registradas. Todos los derechos reservados.
                             </p>
 
-                            {/* Social */}
-                            <div className="mt-5 flex items-center gap-3">
+                            {/* Location */}
+                            {settings['map_address'] && (
+                                <div className="mb-6">
+                                    {settings['map_url'] ? (
+                                        <a
+                                            href={settings['map_url']}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-3 text-sm font-medium text-gray-700 transition-colors hover:text-emerald-600"
+                                        >
+                                            <MapPinIcon
+                                                size={18}
+                                                className="flex-shrink-0"
+                                            />
+                                            <span>
+                                                {settings['map_address']}
+                                            </span>
+                                        </a>
+                                    ) : (
+                                        <div className="inline-flex items-center gap-3 text-sm text-gray-700">
+                                            <MapPinIcon
+                                                size={18}
+                                                className="flex-shrink-0"
+                                            />
+                                            <span>
+                                                {settings['map_address']}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Social Links */}
+                            <div className="flex items-center gap-4">
                                 {socialLinks.map(
                                     ({ label, href, icon: Icon }) => (
                                         <a
@@ -213,42 +237,29 @@ export default function Footer() {
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             aria-label={label}
-                                            className="text-gray-500 transition-opacity hover:opacity-60"
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-all hover:bg-emerald-600 hover:text-white"
                                         >
-                                            <Icon size={16} weight="bold" />
+                                            <Icon size={18} weight="bold" />
                                         </a>
                                     ),
                                 )}
                             </div>
                         </div>
 
-                        {/* Col 2: Navigation + Legal */}
-                        <div>
-                            <p className="mb-4 text-xs font-bold tracking-widest text-gray-400 uppercase">
+                        {/* Spacer for alignment */}
+                        <div className="hidden md:col-span-1 md:block" />
+
+                        {/* Col 2: Navigation (3 cols) */}
+                        <div className="md:col-span-2">
+                            <h3 className="mb-5 text-xs font-bold tracking-widest text-gray-900 uppercase">
                                 Acerca de
-                            </p>
-                            <ul className="space-y-2">
+                            </h3>
+                            <ul className="space-y-3">
                                 {navLinks.map((link) => (
                                     <li key={link.href}>
                                         <Link
                                             href={link.href}
-                                            className="text-sm text-gray-600 transition-colors hover:text-gray-900 hover:underline"
-                                        >
-                                            {link.label}
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <p className="mt-6 mb-4 text-xs font-bold tracking-widest text-gray-400 uppercase">
-                                Soporte
-                            </p>
-                            <ul className="space-y-2">
-                                {legalLinks.map((link) => (
-                                    <li key={link.href}>
-                                        <Link
-                                            href={link.href}
-                                            className="text-sm text-gray-600 transition-colors hover:text-gray-900 hover:underline"
+                                            className="text-sm text-gray-600 transition-colors hover:font-medium hover:text-emerald-600"
                                         >
                                             {link.label}
                                         </Link>
@@ -257,34 +268,60 @@ export default function Footer() {
                             </ul>
                         </div>
 
-                        {/* Regulator columns */}
-                        {regulators.map((reg) => (
-                            <RegulatorCard key={reg.id} reg={reg} />
-                        ))}
+                        {/* Col 3: Support (3 cols) */}
+                        <div className="md:col-span-2">
+                            <h3 className="mb-5 text-xs font-bold tracking-widest text-gray-900 uppercase">
+                                Soporte
+                            </h3>
+                            <ul className="space-y-3">
+                                {legalLinks.map((link) => (
+                                    <li key={link.href}>
+                                        <Link
+                                            href={link.href}
+                                            className="text-sm text-gray-600 transition-colors hover:font-medium hover:text-emerald-600"
+                                        >
+                                            {link.label}
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Regulators Section */}
+                    <div className="mt-16 border-t border-gray-200 pt-16">
+                        <h3 className="mb-8 text-sm font-bold tracking-widest text-gray-900 uppercase">
+                            Reguladores Autorizados
+                        </h3>
+                        <div className="grid gap-6 sm:grid-cols-2">
+                            {regulators.map((reg) => (
+                                <RegulatorCard key={reg.id} reg={reg} />
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* ── Copyright Strip ── */}
-            {/*<div className="border-t border-gray-100 bg-white px-8 py-4">
-                <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-gray-400">
-                        © {new Date().getFullYear()} Red Unisol — Todos los
-                        Derechos Reservados.
-                    </p>
-                    <p className="text-xs text-gray-400">
-                        Desarrollado &amp; Diseñado por{' '}
-                        <a
-                            href="https://buuum.com.ar"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="transition-colors hover:text-gray-700 hover:underline"
-                        >
-                            Buuum! Agencia Digital Freelance
-                        </a>
-                    </p>
-                </div>
-            </div>*/}
+            {/* ── Footer Bottom ── */}
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-8 text-center lg:px-8">
+                <p className="mb-3 text-xs text-gray-500">
+                    © {new Date().getFullYear()} UNISOL. Todos los derechos
+                    reservados.
+                </p>
+                <p className="text-xs text-gray-400">
+                    Powered by{' '}
+                    <a
+                        href="https://solva.ar"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-emerald-600 transition-colors hover:text-emerald-700"
+                    >
+                        Solva
+                    </a>
+                </p>
+            </div>
+
+            <WhatsAppButton />
         </footer>
     );
 }
