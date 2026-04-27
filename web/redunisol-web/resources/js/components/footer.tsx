@@ -150,10 +150,14 @@ export default function Footer() {
 
     return (
         <footer className="w-full">
-            {/* ── Legal Links + Disclaimer ── */}
+            {/* ── BCRA Banner ── */}
+            <div className="bg-[#1F2A37] px-8 py-3 text-center">
+                <p className="text-xs text-gray-300">{bcraStatement}</p>
+            </div>
+
+            {/* ── Legal Links + Disclaimer ──
             <div className="border-t border-gray-200 bg-gray-50 px-8 py-10">
                 <div className="mx-auto max-w-5xl">
-                    {/* Links row */}
                     <div className="mb-6 flex flex-wrap items-center justify-center gap-3 border-b border-gray-200 pb-6">
                         {legalLinks.map((link) => (
                             <Link
@@ -175,19 +179,13 @@ export default function Footer() {
                         </Link>
                     </div>
 
-                    {/* Disclaimer text */}
                     {disclaimer && (
                         <p className="text-center text-[11px] leading-relaxed text-gray-400">
                             {disclaimer}
                         </p>
                     )}
                 </div>
-            </div>
-
-            {/* ── BCRA Banner ── */}
-            <div className="bg-[#1F2A37] px-8 py-3 text-center">
-                <p className="text-xs text-gray-300">{bcraStatement}</p>
-            </div>
+            </div>*/}
 
             {/* ── Main Footer ── */}
             <div className="bg-white px-8 py-12">
