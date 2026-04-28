@@ -56,6 +56,35 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.isoformat(), "2026-04-25T00:00:00-03:00")
 
+    def test_template_variables_use_contact_last_name_then_name(self) -> None:
+        deal = {
+            "TITLE": "CONTRERA G.",
+            "UF_CRM_1724429048": "125245,57",
+        }
+        contact_data = {
+            "NAME": "GISELLA PAULA",
+            "LAST_NAME": "CONTRERA",
+        }
+
+        with patch.dict(os.environ, self.env, clear=False):
+            variables = service.get_template_variables(51765, deal, contact_data)
+
+        self.assertEqual(variables, ["CONTRERA GISELLA PAULA", "$125.246"])
+
+    def test_extract_contact_name_does_not_fallback_to_deal_title(self) -> None:
+        deal = {"TITLE": "CONTRERA G."}
+
+        self.assertEqual(service.extract_contact_name(None, deal), "cliente")
+
+    def test_extract_contact_name_uses_partial_contact_without_deal_title(self) -> None:
+        deal = {"TITLE": "CONTRERA G."}
+        contact_data = {
+            "NAME": "",
+            "LAST_NAME": "CONTRERA",
+        }
+
+        self.assertEqual(service.extract_contact_name(contact_data, deal), "CONTRERA")
+
     def test_build_stage_plan_creates_three_dependent_actions(self) -> None:
         stage_cfg = {
             "name": "RECORDATORIO DE PROMESA",
