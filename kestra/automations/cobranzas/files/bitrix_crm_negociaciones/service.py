@@ -465,13 +465,13 @@ def extract_contact_name(contact_data: Dict[str, Any] | None, deal: Dict[str, An
     if contact_data:
         name = str(contact_data.get("NAME") or "").strip()
         last_name = str(contact_data.get("LAST_NAME") or "").strip()
-        full_name = f"{name} {last_name}".strip()
+        full_name = f"{last_name} {name}".strip()
         if full_name:
             return full_name
-
-    title = str(deal.get("TITLE") or "").strip()
-    if title:
-        return title
+        if last_name:
+            return last_name
+        if name:
+            return name
 
     return "cliente"
 
