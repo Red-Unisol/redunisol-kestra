@@ -19,6 +19,7 @@ fn notify_impl(title: &str, body: &str) -> std::io::Result<()> {
         concat!(
             "Add-Type -AssemblyName System.Windows.Forms; ",
             "Add-Type -AssemblyName System.Drawing; ",
+            "[System.Media.SystemSounds]::Asterisk.Play(); ",
             "$n = New-Object System.Windows.Forms.NotifyIcon; ",
             "$n.Icon = [System.Drawing.SystemIcons]::Information; ",
             "$n.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info; ",

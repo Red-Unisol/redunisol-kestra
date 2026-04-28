@@ -95,6 +95,7 @@ Endpoints autenticados por cliente:
 
 - `GET /api/v1/validations`
 - `GET /api/v1/validations/{verification_id}`
+- `POST /api/v1/validations/{verification_id}/review`
 - `GET /api/v1/internal/metamap/webhook-receipts`
 
 Cabeceras requeridas:
@@ -170,6 +171,17 @@ Filtros soportados:
 ### `GET /api/v1/validations/{verification_id}`
 
 Devuelve la validacion consolidada para un `verification_id`.
+
+### `POST /api/v1/validations/{verification_id}/review`
+
+Marca la validacion como revisada.
+
+Reglas actuales:
+
+- requiere autenticacion por `X-Client-Id` y `X-Client-Secret`
+- solo acepta clientes con rol `validador`
+- es idempotente: si la validacion ya estaba revisada, conserva la primera marca
+- devuelve `reviewed_at`, `reviewed_by_client_id` y `reviewed_by_display_name` dentro de `validation`
 
 ### `GET /api/v1/internal/metamap/webhook-receipts`
 
