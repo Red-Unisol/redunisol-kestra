@@ -1,7 +1,8 @@
 use rust_decimal::Decimal;
 
 use crate::models::{
-    CoinagTransferGuard, CoreSnapshot, MetamapSnapshot, ValidationReport, ValidationSnapshot,
+    CoinagTransferGuard, CoreSnapshot, MetamapSnapshot, TransferAmountOutcome, ValidationReport,
+    ValidationSnapshot,
 };
 
 pub fn normalize_digits(value: impl AsRef<str>) -> Option<String> {
@@ -75,6 +76,7 @@ pub fn build_validation_report(
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
     let has_metamap_validation = server_validation.has_completed_validation();
+    let transfer_amount_resolution = core.transfer_amount_resolution();
 
     match transfer_guard {
         CoinagTransferGuard::Unknown | CoinagTransferGuard::NotFound => {}
@@ -120,6 +122,20 @@ pub fn build_validation_report(
 
     if core.transfer_cbu.is_none() {
         blockers.push("No existe Prestamo.[CBU transferencia] en el core financiero.".to_owned());
+    }
+
+    match transfer_amount_resolution.outcome {
+        TransferAmountOutcome::Exact => {}
+        TransferAmountOutcome::Renovacion => {
+            if let Some(detail) = transfer_amount_resolution.detail {
+                warnings.push(detail);
+            }
+        }
+        TransferAmountOutcome::Error => {
+            if let Some(detail) = transfer_amount_resolution.detail {
+                blockers.push(detail);
+            }
+        }
     }
 
     if has_metamap_validation {
@@ -209,15 +225,14 @@ mod tests {
     use rust_decimal::Decimal;
 
     use super::build_validation_report;
-    use crate::models::{
-        CoinagTransferGuard, CoreSnapshot, MetamapSnapshot, ValidationSnapshot,
-    };
+    use crate::models::{CoinagTransferGuard, CoreSnapshot, MetamapSnapshot, ValidationSnapshot};
 
     fn valid_core_snapshot() -> CoreSnapshot {
         CoreSnapshot {
             request_oid: "123".to_owned(),
             request_status: Some("A Transferir".to_owned()),
             request_amount: Some(Decimal::new(1000, 0)),
+            bank_cmf_amount: Some(Decimal::new(1000, 0)),
             request_document: Some("30111222".to_owned()),
             request_cuil: Some("20-30111222-3".to_owned()),
             document_cuil: Some("20-30111222-3".to_owned()),
@@ -337,7 +352,12 @@ mod tests {
             &CoinagTransferGuard::YaTransferida,
         );
 
-        assert!(report.blockers.iter().any(|value| value == "YA TRANSFERIDA"));
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value == "YA TRANSFERIDA")
+        );
         assert!(!report.can_transfer());
     }
 
@@ -351,6 +371,70 @@ mod tests {
         );
 
         assert!(report.blockers.iter().any(|value| value == "EN PROCESO"));
+        assert!(!report.can_transfer());
+    }
+
+    #[test]
+    fn renewal_is_allowed_and_emits_warning() {
+        let mut core = valid_core_snapshot();
+        core.bank_cmf_amount = Some(Decimal::new(800, 0));
+
+        let report = build_validation_report(
+            &ValidationSnapshot::default(),
+            &MetamapSnapshot::default(),
+            &core,
+            &CoinagTransferGuard::NotFound,
+        );
+
+        assert!(report.blockers.is_empty());
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|value| value.contains("Se detecto renovacion"))
+        );
+        assert!(report.can_transfer());
+    }
+
+    #[test]
+    fn bank_amount_greater_than_request_blocks_transfer() {
+        let mut core = valid_core_snapshot();
+        core.bank_cmf_amount = Some(Decimal::new(1200, 0));
+
+        let report = build_validation_report(
+            &ValidationSnapshot::default(),
+            &MetamapSnapshot::default(),
+            &core,
+            &CoinagTransferGuard::NotFound,
+        );
+
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("Monto bancario mayor que MontoAFinanciar"))
+        );
+        assert!(!report.can_transfer());
+    }
+
+    #[test]
+    fn multiple_positive_bank_amounts_block_transfer() {
+        let mut core = valid_core_snapshot();
+        core.bank_coinag_cba_amount = Some(Decimal::new(1000, 0));
+
+        let report = build_validation_report(
+            &ValidationSnapshot::default(),
+            &MetamapSnapshot::default(),
+            &core,
+            &CoinagTransferGuard::NotFound,
+        );
+
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|value| value.contains("son mayores a cero"))
+        );
         assert!(!report.can_transfer());
     }
 }

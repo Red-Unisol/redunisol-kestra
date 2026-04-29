@@ -204,9 +204,9 @@ impl CoinagClient {
     ) -> Result<TransferLookupResponse> {
         match self.request_transfer_lookup(request_number) {
             Ok(response) => Ok(response),
-            Err(error) if is_transfer_not_found_error(&error) => {
-                Err(anyhow!("No hubo transferencia para esa solicitud en Coinag."))
-            }
+            Err(error) if is_transfer_not_found_error(&error) => Err(anyhow!(
+                "No hubo transferencia para esa solicitud en Coinag."
+            )),
             Err(error) => Err(error),
         }
     }
@@ -225,7 +225,8 @@ impl CoinagClient {
         let normalized_request_number = normalize_digits(request_number).ok_or_else(|| {
             anyhow!("Numero de solicitud invalido. Ingresa digitos, con o sin puntos.")
         })?;
-        let id_trx_cliente = self.build_request_lookup_id_trx_cliente(&normalized_request_number)?;
+        let id_trx_cliente =
+            self.build_request_lookup_id_trx_cliente(&normalized_request_number)?;
         log::info!(
             "Consultando transferencia Coinag para solicitud {} con idTrxCliente {}.",
             normalized_request_number,
@@ -273,9 +274,8 @@ impl CoinagClient {
             .and_then(normalize_digits)
             .ok_or_else(|| anyhow!("No se pudo resolver el CBU de destino."))?;
         let amount = case
-            .metamap
-            .amount
-            .or_else(|| case.metamap.amount_raw.as_deref().and_then(parse_decimal))
+            .transfer_amount_resolution()
+            .transfer_amount
             .ok_or_else(|| anyhow!("No se pudo resolver el importe de la transferencia."))?;
 
         Ok(json!({
@@ -798,7 +798,18 @@ fn extract_transfer_status_code(body: &Value) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::build_request_based_transaction_suffix;
+    use std::{
+        path::PathBuf,
+        sync::{Arc, Mutex},
+    };
+
+    use rust_decimal::Decimal;
+
+    use super::{CoinagClient, TokenCache, build_request_based_transaction_suffix};
+    use crate::{
+        config::CoinagConfig,
+        models::{CoreSnapshot, HydratedCase},
+    };
 
     #[test]
     fn request_based_transaction_suffix_uses_request_number_with_trailing_zero() {
@@ -811,5 +822,50 @@ mod tests {
         let error = build_request_based_transaction_suffix("123456789012345")
             .expect_err("expected suffix generation to fail");
         assert!(error.to_string().contains("excede los 15 digitos"));
+    }
+
+    #[test]
+    fn build_transfer_payload_uses_effective_bank_amount() {
+        let client = CoinagClient {
+            direct_http: None,
+            ssh_http: None,
+            config: CoinagConfig {
+                cuit_debito: "20-11111111-3".to_owned(),
+                cbu_debito: "2850590940090418135201".to_owned(),
+                titular_debito: "Cuenta Debito".to_owned(),
+                concepto: "VAR".to_owned(),
+                descripcion: "Prueba".to_owned(),
+                endpoint: "/Transferencia".to_owned(),
+                id_seq_path: PathBuf::from("transferencias_coinag_seq_test.txt"),
+                ..Default::default()
+            },
+            token_cache: Arc::new(Mutex::new(TokenCache::default())),
+        };
+        let case = HydratedCase {
+            server_validation: Default::default(),
+            metamap: Default::default(),
+            core: CoreSnapshot {
+                request_oid: "123".to_owned(),
+                request_amount: Some(Decimal::new(1000, 0)),
+                request_cuil: Some("20-30111222-3".to_owned()),
+                document_cuil: Some("20-30111222-3".to_owned()),
+                transfer_cbu: Some("2850590940090418135201".to_owned()),
+                bank_cmf_amount: Some(Decimal::new(800, 0)),
+                ..Default::default()
+            },
+            transfer_guard: Default::default(),
+            validation: Default::default(),
+            busy: false,
+            message: None,
+        };
+
+        let payload = client
+            .build_transfer_payload(&case)
+            .expect("expected transfer payload to be created");
+
+        assert_eq!(
+            payload.get("importe").and_then(|value| value.as_str()),
+            Some("800")
+        );
     }
 }
