@@ -28,6 +28,7 @@ Nota importante para aplicaciones no-Kestra:
 
 - `apps/` reserva espacio para servicios y clientes que no deben modelarse como flows
 - ejemplo inicial: `apps/metamap-platform/server/`
+- nuevo app operativo importado: `apps/exportador-bancor/`
 
 Ambientes actuales:
 
@@ -40,6 +41,7 @@ Todo lo relacionado con Kestra vive dentro de `kestra/`.
 
 ```text
 apps/
+  exportador-bancor/
   metamap-platform/
 
 kestra/
