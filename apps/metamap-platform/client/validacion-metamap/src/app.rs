@@ -208,7 +208,8 @@ impl ValidacionMetamapApp {
                     }
                     if updated {
                         order_monitor_items(&mut self.items);
-                        self.summary.reviewed = self.items.iter().filter(|item| item.is_reviewed()).count();
+                        self.summary.reviewed =
+                            self.items.iter().filter(|item| item.is_reviewed()).count();
                     } else {
                         self.spawn_refresh();
                     }
@@ -247,17 +248,19 @@ impl ValidacionMetamapApp {
         let services = Arc::clone(&self.services);
         let sender = self.event_tx.clone();
 
-        thread::spawn(move || match services.mark_validation_reviewed(&verification_id) {
-            Ok(validation) => {
-                let _ = sender.send(WorkerEvent::ValidationReviewed(validation));
-            }
-            Err(error) => {
-                let _ = sender.send(WorkerEvent::ValidationReviewFailed {
-                    verification_id,
-                    error: error.to_string(),
-                });
-            }
-        });
+        thread::spawn(
+            move || match services.mark_validation_reviewed(&verification_id) {
+                Ok(validation) => {
+                    let _ = sender.send(WorkerEvent::ValidationReviewed(validation));
+                }
+                Err(error) => {
+                    let _ = sender.send(WorkerEvent::ValidationReviewFailed {
+                        verification_id,
+                        error: error.to_string(),
+                    });
+                }
+            },
+        );
     }
 }
 
@@ -284,7 +287,10 @@ impl eframe::App for ValidacionMetamapApp {
                     ui.separator();
                     ui.label(format!("Validaciones hoy: {}", self.summary.total));
                     ui.label(format!("Revisadas: {}", self.summary.reviewed));
-                    ui.label(format!("Con datos del core: {}", self.summary.core_enriched));
+                    ui.label(format!(
+                        "Con datos del core: {}",
+                        self.summary.core_enriched
+                    ));
                     ui.label(format!(
                         "Polling: {}s",
                         self.services.poll_interval.as_secs()
@@ -324,7 +330,7 @@ impl eframe::App for ValidacionMetamapApp {
                         ui.label(notice);
                     }
                 });
-        });
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let visible_indices = self
@@ -342,10 +348,13 @@ impl eframe::App for ValidacionMetamapApp {
                         ui.label(RichText::new("Leyendo validaciones del dia...").size(22.0));
                     } else if self.hide_reviewed && !self.items.is_empty() {
                         ui.label(
-                            RichText::new("No hay validaciones pendientes visibles.").size(22.0)
+                            RichText::new("No hay validaciones pendientes visibles.").size(22.0),
                         );
                     } else {
-                        ui.label(RichText::new("No hay validaciones completed registradas hoy.").size(22.0));
+                        ui.label(
+                            RichText::new("No hay validaciones completed registradas hoy.")
+                                .size(22.0),
+                        );
                     }
                 });
                 return;
@@ -364,10 +373,12 @@ impl eframe::App for ValidacionMetamapApp {
                     .show(ui, |ui| {
                         for (grid_index, item_index) in visible_indices.iter().enumerate() {
                             let item = &self.items[*item_index];
-                            let reviewing = item
-                                .verification_id
-                                .as_deref()
-                                .is_some_and(|verification_id| self.reviewing_ids.contains(verification_id));
+                            let reviewing =
+                                item.verification_id
+                                    .as_deref()
+                                    .is_some_and(|verification_id| {
+                                        self.reviewing_ids.contains(verification_id)
+                                    });
 
                             ui.vertical(|ui| {
                                 if render_card(ui, item, card_width, reviewing) {
@@ -566,7 +577,9 @@ fn build_monitor_item(
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "Sin monto".to_owned());
 
-    let event_at = validation.event_at().map(|value| value.with_timezone(&Local));
+    let event_at = validation
+        .event_at()
+        .map(|value| value.with_timezone(&Local));
     let event_label = event_at
         .map(|value| value.format("%d/%m %H:%M:%S").to_string())
         .unwrap_or_else(|| "Sin horario".to_owned());
@@ -580,9 +593,11 @@ fn build_monitor_item(
         })
         .unwrap_or(false);
 
-    let reviewed_at = validation.reviewed_at().map(|value| value.with_timezone(&Local));
-    let reviewed_label = reviewed_at
-        .map(|value| format!("Revisada {}", value.format("%d/%m %H:%M:%S")));
+    let reviewed_at = validation
+        .reviewed_at()
+        .map(|value| value.with_timezone(&Local));
+    let reviewed_label =
+        reviewed_at.map(|value| format!("Revisada {}", value.format("%d/%m %H:%M:%S")));
 
     MonitorItem {
         id: validation.display_id(),
@@ -640,30 +655,36 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
     ui.set_min_width(card_width);
 
     let reviewed = item.is_reviewed();
-    let frame = egui::Frame::group(ui.style()).fill(if reviewed {
-        Color32::from_gray(242)
+    let (card_fill, card_stroke, primary_text_color, secondary_text_color) = if reviewed {
+        (
+            Color32::from_rgb(229, 234, 238),
+            Color32::from_rgb(203, 210, 216),
+            Color32::from_rgb(98, 104, 110),
+            Color32::from_rgb(124, 130, 136),
+        )
     } else {
-        ui.visuals().extreme_bg_color
-    });
+        (
+            Color32::from_rgb(255, 255, 255),
+            Color32::from_rgb(220, 226, 232),
+            ui.visuals().text_color(),
+            Color32::from_rgb(105, 112, 118),
+        )
+    };
+    let frame = egui::Frame::group(ui.style())
+        .fill(card_fill)
+        .stroke(egui::Stroke::new(1.0, card_stroke));
     let mut mark_reviewed_clicked = false;
 
     frame.show(ui, |ui| {
         ui.set_min_width(card_width - 12.0);
         ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
 
-        let primary_text_color = if reviewed {
-            Color32::from_gray(110)
-        } else {
-            ui.visuals().text_color()
-        };
-        let secondary_text_color = if reviewed {
-            Color32::from_gray(140)
-        } else {
-            Color32::GRAY
-        };
-
         ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(&item.event_label).color(secondary_text_color).size(14.0));
+            ui.label(
+                RichText::new(&item.event_label)
+                    .color(secondary_text_color)
+                    .size(14.0),
+            );
             let source_text = if item.core_enriched {
                 "Core + MetaMap"
             } else {
@@ -682,17 +703,40 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
                     Color32::from_rgb(170, 110, 0)
                 }
             };
-            ui.label(RichText::new(source_text).color(source_color).strong().size(14.0));
+            ui.label(
+                RichText::new(source_text)
+                    .color(source_color)
+                    .strong()
+                    .size(14.0),
+            );
             if let Some(reviewed_label) = &item.reviewed_label {
-                ui.label(RichText::new(reviewed_label).color(Color32::from_rgb(80, 110, 150)).size(14.0));
+                let reviewed_label_color = if reviewed {
+                    Color32::from_rgb(109, 125, 140)
+                } else {
+                    Color32::from_rgb(80, 110, 150)
+                };
+                ui.label(
+                    RichText::new(reviewed_label)
+                        .color(reviewed_label_color)
+                        .size(14.0),
+                );
             }
         });
 
         if let Some(verification_id) = item.verification_id.as_deref() {
-            ui.label(RichText::new(verification_id).color(secondary_text_color).size(13.0));
+            ui.label(
+                RichText::new(verification_id)
+                    .color(secondary_text_color)
+                    .size(13.0),
+            );
         }
 
-        ui.label(RichText::new(&item.name).color(primary_text_color).size(30.0).strong());
+        ui.label(
+            RichText::new(&item.name)
+                .color(primary_text_color)
+                .size(30.0)
+                .strong(),
+        );
         ui.separator();
 
         render_metric(ui, "LINEA", &item.line, 22.0, reviewed);
@@ -742,5 +786,10 @@ fn render_metric(ui: &mut egui::Ui, label: &str, value: &str, value_size: f32, r
         ui.visuals().text_color()
     };
     ui.label(RichText::new(label).size(13.0).color(label_color).strong());
-    ui.label(RichText::new(value).color(value_color).size(value_size).strong());
+    ui.label(
+        RichText::new(value)
+            .color(value_color)
+            .size(value_size)
+            .strong(),
+    );
 }

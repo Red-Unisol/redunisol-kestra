@@ -201,6 +201,81 @@ Campos recomendados si estan disponibles sin complicar la query:
 - nombre del titular
 - fecha de la solicitud
 
+## Especificacion de montos para transferencia
+
+### Hallazgos de API confirmados 2026-04-29
+
+En la API interna del core financiero quedaron confirmados estos campos:
+
+- `MontoAFinanciar`
+- `MontoCancelaciones`
+- `Prestamo.[Monto En Mano]`
+- `Prestamo.[Bco CMF]`
+- `Prestamo.[Bco Coinag Cba]`
+
+Observacion importante:
+
+- `Prestamo.[Monto En Mano]`, `Prestamo.[Bco CMF]` y `Prestamo.[Bco Coinag Cba]` pueden venir negativos
+- para reglas de negocio y calculo operativo deben interpretarse en valor absoluto
+
+### Regla primaria de transferencia
+
+Siempre hay que transferir el monto bancario real del prestamo.
+
+Campo bancario operativo:
+
+- si `Prestamo.[Bco CMF]` es distinto de cero, ese es el monto bancario a usar
+- si `Prestamo.[Bco CMF]` es cero y `Prestamo.[Bco Coinag Cba]` es distinto de cero, ese es el monto bancario a usar
+
+Regla operativa:
+
+- monto total a transferir = `abs(Prestamo.[Bco CMF])` o, si corresponde, `abs(Prestamo.[Bco Coinag Cba])`
+
+### Renovacion
+
+Si el monto bancario efectivo no coincide con `MontoAFinanciar`, el caso debe interpretarse como una renovacion.
+
+Interpretacion de negocio:
+
+- renovacion = cancelacion de deuda con la entidad
+
+Esto implica:
+
+- `MontoAFinanciar` no debe asumirse como el monto efectivamente transferible
+- la app debe priorizar el monto bancario efectivo como monto total de transferencia
+
+### Cancelacion con terceros
+
+Si `MontoCancelaciones` es distinto de cero, el caso debe interpretarse como una cancelacion de deuda con terceros.
+
+Interpretacion de negocio:
+
+- cancelacion = cancelacion de deuda con terceros
+
+Distribucion operativa:
+
+- monto a transferir a terceros = `MontoCancelaciones`
+- monto a transferir al socio = `abs(Prestamo.[Monto En Mano])`
+
+### Relacion observada entre campos
+
+En la investigacion sobre muestras reales quedo observado que, en la gran mayoria de los casos con cancelacion:
+
+- `MontoCancelaciones + abs(Prestamo.[Monto En Mano]) = monto bancario efectivo`
+
+Esta relacion debe tratarse como regla operativa objetivo para el rediseño del cliente.
+
+### Consecuencia para transferencias-celesol
+
+La modificacion futura de `transferencias-celesol` debe contemplar al menos:
+
+- mostrar y/o calcular el monto total desde el monto bancario efectivo
+- detectar cancelaciones por `MontoCancelaciones != 0`
+- separar el destino del dinero en casos de cancelacion:
+  - terceros por `MontoCancelaciones`
+  - socio por `abs(Prestamo.[Monto En Mano])`
+- no usar `MontoAFinanciar` como unico monto de transferencia cuando contradice al monto bancario efectivo
+
 ## Regla de identidad del item
 
 La identidad del item debe pasar de `case_id` a `request_oid`.
