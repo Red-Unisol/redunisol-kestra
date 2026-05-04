@@ -69,7 +69,7 @@ export default function BlogCard({
                 {/* Body */}
                 <div className="flex flex-1 flex-col gap-3 p-5">
                     {/* Categories */}
-                    {post.categories.length > 0 && (
+                    {/*post.categories.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                             {post.categories.map((cat) => (
                                 <span
@@ -80,7 +80,7 @@ export default function BlogCard({
                                 </span>
                             ))}
                         </div>
-                    )}
+                    )*/}
 
                     {/* Title */}
                     <h2 className="line-clamp-2 leading-snug font-semibold text-[#1e2d3d]">
