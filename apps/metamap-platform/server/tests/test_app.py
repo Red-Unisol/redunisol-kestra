@@ -359,6 +359,73 @@ class MetaMapServerApiTests(unittest.TestCase):
         self.assertEqual(validation.json()["validation"]["applicant_name"], "Grace Hopper")
         self.assertEqual(validation.json()["validation"]["document_number"], "27888999")
 
+    def test_validador_can_mark_validation_as_reviewed_and_review_is_idempotent(self) -> None:
+        self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_completed",
+                verification_id="verif-reviewed",
+            )
+        )
+
+        review = self.client.post(
+            "/api/v1/validations/verif-reviewed/review",
+            headers=self._client_headers(ClientRole.VALIDADOR),
+        )
+        self.assertEqual(review.status_code, 200)
+        self.assertEqual(
+            review.json()["validation"]["reviewed_by_client_id"],
+            "validador-dev-1",
+        )
+        self.assertEqual(
+            review.json()["validation"]["reviewed_by_display_name"],
+            "Validador Dev 1",
+        )
+        first_reviewed_at = review.json()["validation"]["reviewed_at"]
+        self.assertIsNotNone(first_reviewed_at)
+
+        review_again = self.client.post(
+            "/api/v1/validations/verif-reviewed/review",
+            headers=self._client_headers(ClientRole.VALIDADOR),
+        )
+        self.assertEqual(review_again.status_code, 200)
+        self.assertEqual(
+            review_again.json()["validation"]["reviewed_at"],
+            first_reviewed_at,
+        )
+
+        validation = self.client.get(
+            "/api/v1/validations/verif-reviewed",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(validation.status_code, 200)
+        self.assertEqual(
+            validation.json()["validation"]["reviewed_by_client_id"],
+            "validador-dev-1",
+        )
+        self.assertEqual(
+            validation.json()["validation"]["reviewed_by_display_name"],
+            "Validador Dev 1",
+        )
+        self.assertEqual(
+            validation.json()["validation"]["reviewed_at"],
+            first_reviewed_at,
+        )
+
+    def test_non_validador_cannot_mark_validation_as_reviewed(self) -> None:
+        self._post_metamap_webhook(
+            self._metamap_payload(
+                event_name="verification_completed",
+                verification_id="verif-forbidden-review",
+            )
+        )
+
+        review = self.client.post(
+            "/api/v1/validations/verif-forbidden-review/review",
+            headers=self._client_headers(ClientRole.TRANSFERENCIAS_CELESOL),
+        )
+        self.assertEqual(review.status_code, 403)
+        self.assertIn("rol validador", review.json()["detail"])
+
     def test_signed_document_details_exposes_requested_amount(self) -> None:
         self._resource_payloads["verif-signed-doc"] = {
             "signedDocumentDetails": [

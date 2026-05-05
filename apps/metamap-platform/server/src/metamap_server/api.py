@@ -13,6 +13,7 @@ from .metamap_resource import extract_validation_enrichment, fetch_metamap_resou
 from .security import AuthenticatedClient, AuthenticationError, verify_metamap_signature
 from .store_sql import SqlValidationStore
 from .workflow import (
+    ClientRole,
     ValidationStatus,
     WorkflowError,
     extract_resource_url,
@@ -74,6 +75,16 @@ def create_app(
 
     def _settings_dependency() -> AppSettings:
         return get_settings(app)
+
+    def _require_client_role(
+        current_client: AuthenticatedClient,
+        expected_role: ClientRole,
+    ) -> None:
+        if current_client.role != expected_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operacion permitida solo para clientes con rol {expected_role.value}.",
+            )
 
     def _authenticate_client(
         x_client_id: str | None = Header(None, alias="X-Client-Id"),
@@ -333,6 +344,23 @@ def create_app(
             validation=validation,
         )
         return {"validation": validation.to_dict(include_payload=include_payload)}
+
+    @app.post("/api/v1/validations/{verification_id}/review")
+    def mark_validation_reviewed(
+        verification_id: str,
+        validation_store: Any = Depends(_store_dependency),
+        current_client: AuthenticatedClient = Depends(_authenticate_client),
+    ) -> dict:
+        _require_client_role(current_client, ClientRole.VALIDADOR)
+        try:
+            validation = validation_store.mark_validation_reviewed(
+                verification_id=verification_id,
+                reviewed_by_client_id=current_client.client_id,
+                reviewed_by_display_name=current_client.display_name,
+            )
+        except WorkflowError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"validation": validation.to_dict(include_payload=False)}
 
     @app.get("/api/v1/internal/metamap/webhook-receipts")
     def list_metamap_webhook_receipts(

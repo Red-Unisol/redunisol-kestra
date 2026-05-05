@@ -23,7 +23,10 @@ return new class extends Migration {
             $table->foreignId('author_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
-    }    public function down(): void {
+    }
+
+    public function down(): void
+    {
         Schema::dropIfExists('blogs');
     }
 };

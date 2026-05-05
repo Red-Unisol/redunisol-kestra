@@ -72,6 +72,9 @@ class ValidationRow(Base):
     last_received_at: Mapped[str] = mapped_column(String(64), default=_utc_now, nullable=False)
     latest_event_timestamp: Mapped[str | None] = mapped_column(String(64))
     completed_at: Mapped[str | None] = mapped_column(String(64))
+    reviewed_at: Mapped[str | None] = mapped_column(String(64))
+    reviewed_by_client_id: Mapped[str | None] = mapped_column(String(120))
+    reviewed_by_display_name: Mapped[str | None] = mapped_column(String(255))
     event_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 
@@ -284,6 +287,24 @@ class SqlValidationStore:
                 raise WorkflowError(f"Validacion {verification_id} inexistente.")
             return self._to_validation_record(row)
 
+    def mark_validation_reviewed(
+        self,
+        *,
+        verification_id: str,
+        reviewed_by_client_id: str,
+        reviewed_by_display_name: str | None = None,
+    ) -> ValidationRecord:
+        with self._session_factory() as session:
+            row = session.get(ValidationRow, verification_id)
+            if row is None:
+                raise WorkflowError(f"Validacion {verification_id} inexistente.")
+            if not row.reviewed_at:
+                row.reviewed_at = _utc_now()
+                row.reviewed_by_client_id = reviewed_by_client_id
+                row.reviewed_by_display_name = reviewed_by_display_name
+                session.commit()
+            return self._to_validation_record(row)
+
     def update_validation_enrichment(
         self,
         *,
@@ -435,6 +456,9 @@ class SqlValidationStore:
             last_received_at=row.last_received_at,
             latest_event_timestamp=row.latest_event_timestamp,
             completed_at=row.completed_at,
+            reviewed_at=row.reviewed_at,
+            reviewed_by_client_id=row.reviewed_by_client_id,
+            reviewed_by_display_name=row.reviewed_by_display_name,
             event_count=row.event_count,
         )
 
@@ -467,6 +491,9 @@ class SqlValidationStore:
             "requested_amount_value": "VARCHAR(64)",
             "applicant_name": "VARCHAR(255)",
             "document_number": "VARCHAR(120)",
+            "reviewed_at": "VARCHAR(64)",
+            "reviewed_by_client_id": "VARCHAR(120)",
+            "reviewed_by_display_name": "VARCHAR(255)",
         }
         missing_columns = [
             (name, ddl)

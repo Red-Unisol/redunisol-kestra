@@ -16,6 +16,7 @@ use crate::{
     APP_NAME_WITH_TAG,
     config::AppConfig,
     core_client::CoreClient,
+    media_downloader::MediaDownloader,
     models::{CoreSnapshot, MonitorItem, SnapshotSummary, ValidationSnapshot, normalize_digits},
     notifications,
     server_client::ServerClient,
@@ -32,6 +33,8 @@ pub struct ValidacionMetamapApp {
     next_poll_at: Instant,
     items_loading: bool,
     has_seeded: bool,
+    hide_reviewed: bool,
+    reviewing_ids: HashSet<String>,
     notices: Vec<String>,
     event_tx: Sender<WorkerEvent>,
     event_rx: Receiver<WorkerEvent>,
@@ -40,6 +43,7 @@ pub struct ValidacionMetamapApp {
 struct AppServices {
     server: ServerClient,
     core: CoreClient,
+    media_downloader: Option<MediaDownloader>,
     poll_interval: Duration,
     max_items: usize,
 }
@@ -48,12 +52,20 @@ struct SnapshotPayload {
     items: Vec<MonitorItem>,
     summary: SnapshotSummary,
     warnings: Vec<String>,
+    downloaded_media_files: usize,
+    downloaded_media_validations: usize,
+    downloads_dir_display: Option<String>,
     fetched_at: DateTime<Local>,
 }
 
 enum WorkerEvent {
     SnapshotLoaded(SnapshotPayload),
     SnapshotFailed(String),
+    ValidationReviewed(ValidationSnapshot),
+    ValidationReviewFailed {
+        verification_id: String,
+        error: String,
+    },
 }
 
 impl ValidacionMetamapApp {
@@ -69,6 +81,8 @@ impl ValidacionMetamapApp {
             next_poll_at: Instant::now(),
             items_loading: false,
             has_seeded: false,
+            hide_reviewed: false,
+            reviewing_ids: HashSet::new(),
             notices: Vec::new(),
             event_tx,
             event_rx,
@@ -133,6 +147,32 @@ impl ValidacionMetamapApp {
                     self.summary = snapshot.summary;
                     self.items = snapshot.items;
 
+                    if snapshot.downloaded_media_validations > 0 {
+                        let files_label = if snapshot.downloaded_media_files == 1 {
+                            "archivo"
+                        } else {
+                            "archivos"
+                        };
+                        let validations_label = if snapshot.downloaded_media_validations == 1 {
+                            "validacion"
+                        } else {
+                            "validaciones"
+                        };
+                        let target_label = snapshot
+                            .downloads_dir_display
+                            .as_deref()
+                            .map(|path| format!(" en {path}"))
+                            .unwrap_or_default();
+                        self.push_notice(format!(
+                            "Se descargaron {} {} de media para {} {}{}.",
+                            snapshot.downloaded_media_files,
+                            files_label,
+                            snapshot.downloaded_media_validations,
+                            validations_label,
+                            target_label
+                        ));
+                    }
+
                     if self.warnings.is_empty() {
                         self.push_notice("Monitor actualizado.");
                     } else {
@@ -147,6 +187,44 @@ impl ValidacionMetamapApp {
                     self.next_poll_at = Instant::now() + self.services.poll_interval;
                     self.push_notice(format!("Error actualizando el monitor: {error}"));
                 }
+                WorkerEvent::ValidationReviewed(validation) => {
+                    let Some(verification_id) = validation.verification_id_trimmed() else {
+                        continue;
+                    };
+                    self.reviewing_ids.remove(&verification_id);
+
+                    let reviewed_by = validation
+                        .reviewed_by_display_name_trimmed()
+                        .or_else(|| validation.reviewed_by_client_id_trimmed())
+                        .unwrap_or_else(|| "cliente desconocido".to_owned());
+
+                    let mut updated = false;
+                    for item in &mut self.items {
+                        if item.verification_id.as_deref() == Some(verification_id.as_str()) {
+                            item.apply_review_state(&validation);
+                            updated = true;
+                            break;
+                        }
+                    }
+                    if updated {
+                        order_monitor_items(&mut self.items);
+                        self.summary.reviewed = self.items.iter().filter(|item| item.is_reviewed()).count();
+                    } else {
+                        self.spawn_refresh();
+                    }
+                    self.push_notice(format!(
+                        "Validacion {verification_id} marcada como revisada por {reviewed_by}."
+                    ));
+                }
+                WorkerEvent::ValidationReviewFailed {
+                    verification_id,
+                    error,
+                } => {
+                    self.reviewing_ids.remove(&verification_id);
+                    self.push_notice(format!(
+                        "No se pudo marcar como revisada la validacion {verification_id}: {error}"
+                    ));
+                }
             }
         }
     }
@@ -159,6 +237,28 @@ impl ValidacionMetamapApp {
             self.notices.truncate(30);
         }
     }
+
+    fn start_review(&mut self, verification_id: String) {
+        if self.reviewing_ids.contains(&verification_id) {
+            return;
+        }
+
+        self.reviewing_ids.insert(verification_id.clone());
+        let services = Arc::clone(&self.services);
+        let sender = self.event_tx.clone();
+
+        thread::spawn(move || match services.mark_validation_reviewed(&verification_id) {
+            Ok(validation) => {
+                let _ = sender.send(WorkerEvent::ValidationReviewed(validation));
+            }
+            Err(error) => {
+                let _ = sender.send(WorkerEvent::ValidationReviewFailed {
+                    verification_id,
+                    error: error.to_string(),
+                });
+            }
+        });
+    }
 }
 
 impl eframe::App for ValidacionMetamapApp {
@@ -168,6 +268,8 @@ impl eframe::App for ValidacionMetamapApp {
         if !self.items_loading && Instant::now() >= self.next_poll_at {
             self.spawn_refresh();
         }
+
+        let mut clicked_review_id = None;
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.vertical(|ui| {
@@ -181,6 +283,7 @@ impl eframe::App for ValidacionMetamapApp {
                     );
                     ui.separator();
                     ui.label(format!("Validaciones hoy: {}", self.summary.total));
+                    ui.label(format!("Revisadas: {}", self.summary.reviewed));
                     ui.label(format!("Con datos del core: {}", self.summary.core_enriched));
                     ui.label(format!(
                         "Polling: {}s",
@@ -198,6 +301,7 @@ impl eframe::App for ValidacionMetamapApp {
                     {
                         self.spawn_refresh();
                     }
+                    ui.checkbox(&mut self.hide_reviewed, "Ocultar revisadas");
                 });
 
                 if self.items_loading {
@@ -220,14 +324,26 @@ impl eframe::App for ValidacionMetamapApp {
                         ui.label(notice);
                     }
                 });
-            });
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if self.items.is_empty() {
+            let visible_indices = self
+                .items
+                .iter()
+                .enumerate()
+                .filter(|(_, item)| !self.hide_reviewed || !item.is_reviewed())
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+
+            if visible_indices.is_empty() {
                 ui.add_space(40.0);
                 ui.vertical_centered(|ui| {
                     if self.items_loading {
                         ui.label(RichText::new("Leyendo validaciones del dia...").size(22.0));
+                    } else if self.hide_reviewed && !self.items.is_empty() {
+                        ui.label(
+                            RichText::new("No hay validaciones pendientes visibles.").size(22.0)
+                        );
                     } else {
                         ui.label(RichText::new("No hay validaciones completed registradas hoy.").size(22.0));
                     }
@@ -246,16 +362,30 @@ impl eframe::App for ValidacionMetamapApp {
                     .num_columns(columns)
                     .spacing([16.0, 16.0])
                     .show(ui, |ui| {
-                        for (index, item) in self.items.iter().enumerate() {
-                            ui.vertical(|ui| render_card(ui, item, card_width));
+                        for (grid_index, item_index) in visible_indices.iter().enumerate() {
+                            let item = &self.items[*item_index];
+                            let reviewing = item
+                                .verification_id
+                                .as_deref()
+                                .is_some_and(|verification_id| self.reviewing_ids.contains(verification_id));
 
-                            if (index + 1) % columns == 0 {
+                            ui.vertical(|ui| {
+                                if render_card(ui, item, card_width, reviewing) {
+                                    clicked_review_id = item.verification_id.clone();
+                                }
+                            });
+
+                            if (grid_index + 1) % columns == 0 {
                                 ui.end_row();
                             }
                         }
                     });
             });
         });
+
+        if let Some(verification_id) = clicked_review_id {
+            self.start_review(verification_id);
+        }
 
         ctx.request_repaint_after(Duration::from_millis(250));
     }
@@ -266,9 +396,14 @@ impl AppServices {
         Ok(Self {
             server: ServerClient::new(&config.server, config.request_timeout)?,
             core: CoreClient::new(&config.core, config.request_timeout)?,
+            media_downloader: MediaDownloader::from_config(&config.media, config.request_timeout)?,
             poll_interval: config.poll_interval,
             max_items: config.max_items.max(PAGE_SIZE),
         })
+    }
+
+    fn mark_validation_reviewed(&self, verification_id: &str) -> Result<ValidationSnapshot> {
+        self.server.mark_validation_reviewed(verification_id)
     }
 
     fn load_snapshot(&self) -> Result<SnapshotPayload> {
@@ -358,17 +493,32 @@ impl AppServices {
             .iter()
             .map(|validation| build_monitor_item(validation, &core_snapshots, &cuil_by_document))
             .collect::<Vec<_>>();
-        items.sort_by(|left, right| right.event_at.cmp(&left.event_at));
+        order_monitor_items(&mut items);
 
         let summary = SnapshotSummary {
             total: items.len(),
             core_enriched: items.iter().filter(|item| item.core_enriched).count(),
+            reviewed: items.iter().filter(|item| item.is_reviewed()).count(),
         };
+
+        let mut downloaded_media_files = 0usize;
+        let mut downloaded_media_validations = 0usize;
+        let mut downloads_dir_display = None;
+        if let Some(media_downloader) = &self.media_downloader {
+            let media_outcome = media_downloader.download_snapshot_media(&validations);
+            downloaded_media_files = media_outcome.downloaded_files;
+            downloaded_media_validations = media_outcome.downloaded_validations;
+            downloads_dir_display = Some(media_outcome.downloads_dir.display().to_string());
+            warnings.extend(media_outcome.warnings);
+        }
 
         Ok(SnapshotPayload {
             items,
             summary,
             warnings,
+            downloaded_media_files,
+            downloaded_media_validations,
+            downloads_dir_display,
             fetched_at: Local::now(),
         })
     }
@@ -430,6 +580,10 @@ fn build_monitor_item(
         })
         .unwrap_or(false);
 
+    let reviewed_at = validation.reviewed_at().map(|value| value.with_timezone(&Local));
+    let reviewed_label = reviewed_at
+        .map(|value| format!("Revisada {}", value.format("%d/%m %H:%M:%S")));
+
     MonitorItem {
         id: validation.display_id(),
         verification_id: validation.verification_id.clone(),
@@ -441,7 +595,20 @@ fn build_monitor_item(
         event_at,
         event_label,
         core_enriched,
+        reviewed_at,
+        reviewed_label,
+        reviewed_by_display_name: validation.reviewed_by_display_name_trimmed(),
+        reviewed_by_client_id: validation.reviewed_by_client_id_trimmed(),
     }
+}
+
+fn order_monitor_items(items: &mut [MonitorItem]) {
+    items.sort_by(|left, right| {
+        left.is_reviewed()
+            .cmp(&right.is_reviewed())
+            .then_with(|| right.event_at.cmp(&left.event_at))
+            .then_with(|| left.id.cmp(&right.id))
+    });
 }
 
 fn emit_new_item_notifications(new_items: &[MonitorItem]) {
@@ -469,44 +636,111 @@ fn emit_new_item_notifications(new_items: &[MonitorItem]) {
     );
 }
 
-fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32) {
+fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing: bool) -> bool {
     ui.set_min_width(card_width);
 
-    let frame = egui::Frame::group(ui.style());
+    let reviewed = item.is_reviewed();
+    let frame = egui::Frame::group(ui.style()).fill(if reviewed {
+        Color32::from_gray(242)
+    } else {
+        ui.visuals().extreme_bg_color
+    });
+    let mut mark_reviewed_clicked = false;
+
     frame.show(ui, |ui| {
         ui.set_min_width(card_width - 12.0);
         ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
 
+        let primary_text_color = if reviewed {
+            Color32::from_gray(110)
+        } else {
+            ui.visuals().text_color()
+        };
+        let secondary_text_color = if reviewed {
+            Color32::from_gray(140)
+        } else {
+            Color32::GRAY
+        };
+
         ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(&item.event_label).color(Color32::GRAY).size(14.0));
+            ui.label(RichText::new(&item.event_label).color(secondary_text_color).size(14.0));
             let source_text = if item.core_enriched {
                 "Core + MetaMap"
             } else {
                 "MetaMap"
             };
             let source_color = if item.core_enriched {
-                Color32::from_rgb(24, 120, 52)
+                if reviewed {
+                    Color32::from_rgb(96, 132, 104)
+                } else {
+                    Color32::from_rgb(24, 120, 52)
+                }
             } else {
-                Color32::from_rgb(170, 110, 0)
+                if reviewed {
+                    Color32::from_rgb(156, 134, 90)
+                } else {
+                    Color32::from_rgb(170, 110, 0)
+                }
             };
             ui.label(RichText::new(source_text).color(source_color).strong().size(14.0));
+            if let Some(reviewed_label) = &item.reviewed_label {
+                ui.label(RichText::new(reviewed_label).color(Color32::from_rgb(80, 110, 150)).size(14.0));
+            }
         });
 
         if let Some(verification_id) = item.verification_id.as_deref() {
-            ui.label(RichText::new(verification_id).color(Color32::GRAY).size(13.0));
+            ui.label(RichText::new(verification_id).color(secondary_text_color).size(13.0));
         }
 
-        ui.label(RichText::new(&item.name).size(30.0).strong());
+        ui.label(RichText::new(&item.name).color(primary_text_color).size(30.0).strong());
         ui.separator();
 
-        render_metric(ui, "LINEA", &item.line, 22.0);
-        render_metric(ui, "NUM SOLICITUD", &item.request_number, 22.0);
-        render_metric(ui, "CUIL", &item.cuil, 22.0);
-        render_metric(ui, "MONTO", &item.amount, 28.0);
+        render_metric(ui, "LINEA", &item.line, 22.0, reviewed);
+        render_metric(ui, "NUM SOLICITUD", &item.request_number, 22.0, reviewed);
+        render_metric(ui, "CUIL", &item.cuil, 22.0, reviewed);
+        render_metric(ui, "MONTO", &item.amount, 28.0, reviewed);
+
+        if let Some(reviewed_by) = item
+            .reviewed_by_display_name
+            .as_deref()
+            .or(item.reviewed_by_client_id.as_deref())
+        {
+            ui.label(
+                RichText::new(format!("Marcada por {reviewed_by}"))
+                    .color(secondary_text_color)
+                    .size(13.0),
+            );
+        }
+
+        if !reviewed && item.verification_id.is_some() {
+            let button_label = if reviewing {
+                "Marcando..."
+            } else {
+                "Marcar revisada"
+            };
+            if ui
+                .add_enabled(!reviewing, egui::Button::new(button_label))
+                .clicked()
+            {
+                mark_reviewed_clicked = true;
+            }
+        }
     });
+
+    mark_reviewed_clicked
 }
 
-fn render_metric(ui: &mut egui::Ui, label: &str, value: &str, value_size: f32) {
-    ui.label(RichText::new(label).size(13.0).color(Color32::GRAY).strong());
-    ui.label(RichText::new(value).size(value_size).strong());
+fn render_metric(ui: &mut egui::Ui, label: &str, value: &str, value_size: f32, reviewed: bool) {
+    let label_color = if reviewed {
+        Color32::from_gray(140)
+    } else {
+        Color32::GRAY
+    };
+    let value_color = if reviewed {
+        Color32::from_gray(110)
+    } else {
+        ui.visuals().text_color()
+    };
+    ui.label(RichText::new(label).size(13.0).color(label_color).strong());
+    ui.label(RichText::new(value).color(value_color).size(value_size).strong());
 }

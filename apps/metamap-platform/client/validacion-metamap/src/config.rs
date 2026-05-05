@@ -11,6 +11,7 @@ use anyhow::{Context, Result, anyhow};
 pub struct AppConfig {
     pub server: ServerConfig,
     pub core: CoreConfig,
+    pub media: MediaConfig,
     pub poll_interval: Duration,
     pub request_timeout: Duration,
     pub max_items: usize,
@@ -28,6 +29,13 @@ pub struct ServerConfig {
 pub struct CoreConfig {
     pub base_url: String,
     pub allow_invalid_certs: bool,
+}
+
+#[derive(Clone)]
+pub struct MediaConfig {
+    pub downloads_dir: PathBuf,
+    pub metamap_client_id: Option<String>,
+    pub metamap_client_secret: Option<String>,
 }
 
 type ConfigValues = HashMap<String, String>;
@@ -62,6 +70,20 @@ impl AppConfig {
                     "VALIDACION_METAMAP_CORE_ALLOW_INVALID_CERTS",
                     true,
                 )?,
+            },
+            media: MediaConfig {
+                downloads_dir: resolve_runtime_dir_path(
+                    optional_value(values, "VALIDACION_METAMAP_MEDIA_DOWNLOADS_DIR")
+                        .unwrap_or_else(|| "media-validaciones".to_owned()),
+                )?,
+                metamap_client_id: optional_value(
+                    values,
+                    "VALIDACION_METAMAP_METAMAP_CLIENT_ID",
+                ),
+                metamap_client_secret: optional_value(
+                    values,
+                    "VALIDACION_METAMAP_METAMAP_CLIENT_SECRET",
+                ),
             },
             poll_interval: Duration::from_secs(parse_u64_value(
                 values,
@@ -136,6 +158,29 @@ pub fn read_config_file_value(name: &str) -> Option<String> {
     let path = resolve_runtime_config_path().ok().flatten()?;
     let values = parse_env_file(&path).ok()?;
     optional_value(&values, name)
+}
+
+fn resolve_runtime_dir_path(raw_value: String) -> Result<PathBuf> {
+    let candidate = PathBuf::from(raw_value.trim());
+    if candidate.is_absolute() {
+        return Ok(candidate);
+    }
+
+    Ok(resolve_runtime_base_dir()?.join(candidate))
+}
+
+fn resolve_runtime_base_dir() -> Result<PathBuf> {
+    if let Some(config_path) = resolve_runtime_config_path()? {
+        if let Some(parent) = config_path.parent() {
+            return Ok(parent.to_path_buf());
+        }
+    }
+
+    env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .or_else(|| env::current_dir().ok())
+        .ok_or_else(|| anyhow!("No se pudo resolver la carpeta base del runtime."))
 }
 
 fn parse_env_file(path: &Path) -> Result<ConfigValues> {

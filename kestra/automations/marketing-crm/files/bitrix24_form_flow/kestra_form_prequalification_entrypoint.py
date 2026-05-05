@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any
 
-from .form_processor.business_logic import ingest_form_body, ingest_submission
+from .form_processor.business_logic import prequalify_submission
 
 try:
     from kestra import Kestra
@@ -29,6 +29,9 @@ def main() -> int:
             "action": "error",
             "reason": "error",
             "message": str(exc),
+            "rejection_label": None,
+            "bcra_result": None,
+            "payload": None,
         }
 
     _emit_outputs_if_available(result)
@@ -44,35 +47,10 @@ def _load_trigger_body() -> Any:
 
 
 def _process_payload(payload: Any) -> dict[str, object]:
-    content_type = os.environ.get("TRIGGER_CONTENT_TYPE")
+    if not isinstance(payload, dict):
+        raise ValueError("El body del webhook debe ser un objeto JSON.")
 
-    if isinstance(payload, dict):
-        return ingest_submission(_apply_full_name_override(payload))
-
-    if payload is None:
-        return ingest_form_body("", content_type=content_type)
-
-    if isinstance(payload, (list, tuple)):
-        raise ValueError("El body del webhook debe ser un objeto JSON o una cadena.")
-
-    return ingest_form_body(str(payload), content_type=content_type)
-
-
-def _apply_full_name_override(payload: dict[str, Any]) -> dict[str, Any]:
-    nombre = os.environ.get("ARCA_RESOLVED_NOMBRE", "").strip()
-    apellido = os.environ.get("ARCA_RESOLVED_APELLIDO", "").strip()
-    razon_social = os.environ.get("ARCA_RESOLVED_RAZON_SOCIAL", "").strip()
-
-    resolved_full_name = " ".join(part for part in (nombre, apellido) if part)
-    if not resolved_full_name and razon_social:
-        resolved_full_name = razon_social
-
-    if not resolved_full_name:
-        return payload
-
-    enriched_payload = dict(payload)
-    enriched_payload["full_name"] = resolved_full_name
-    return enriched_payload
+    return prequalify_submission(dict(payload))
 
 
 def _emit_outputs_if_available(result: dict[str, object]) -> None:
@@ -82,11 +60,13 @@ def _emit_outputs_if_available(result: dict[str, object]) -> None:
     Kestra.outputs(
         {
             "ok": bool(result.get("ok", False)),
-            "contact_id": "" if result.get("contact_id") is None else str(result.get("contact_id")),
-            "lead_id": "" if result.get("lead_id") is None else str(result.get("lead_id")),
+            "qualified": bool(result.get("qualified", False)),
             "action": str(result.get("action") or ""),
             "reason": str(result.get("reason") or ""),
             "message": str(result.get("message") or ""),
+            "rejection_label": str(result.get("rejection_label") or ""),
+            "payload_json": json.dumps(result.get("payload") or {}, ensure_ascii=True),
+            "bcra_result_json": json.dumps(result.get("bcra_result") or {}, ensure_ascii=True),
         }
     )
 

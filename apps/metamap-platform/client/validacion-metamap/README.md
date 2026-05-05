@@ -12,12 +12,26 @@ No forma parte del hub web y no expone nada publicamente. Corre localmente en la
 
 Tambien refresca cada 20 segundos y dispara una notificacion local de Windows cuando aparece una validacion nueva.
 
+Ademas, si se configuran las credenciales MetaMap, descarga la media asociada a cada validacion completed del dia en una carpeta local por persona/validacion. Hoy baja:
+
+- selfie
+- fotos del documento
+- PDFs firmados disponibles en MetaMap
+
+Cada tarjeta permite marcar la validacion como revisada. Las revisadas:
+
+- se persisten en el `metamap-platform/server`
+- quedan al final del listado
+- aparecen en gris
+- se pueden ocultar con un toggle en la barra superior
+
 ## Estructura
 
 - `src/main.rs`: arranque de la app nativa
 - `src/app.rs`: UI, polling y manejo de eventos
 - `src/server_client.rs`: consulta a `GET /api/v1/validations`
 - `src/core_client.rs`: consultas `EvaluateList` al core financiero
+- `src/media_downloader.rs`: fetch del recurso MetaMap y descarga de media local
 - `src/notifications.rs`: notificaciones locales de Windows
 - `src/config.rs`: carga de configuracion desde entorno o archivo local
 
@@ -29,7 +43,13 @@ Tambien refresca cada 20 segundos y dispara una notificacion local de Windows cu
    - `VALIDACION_METAMAP_SERVER_CLIENT_ID`
    - `VALIDACION_METAMAP_SERVER_CLIENT_SECRET`
    - `VALIDACION_METAMAP_CORE_BASE_URL`
+   - `VALIDACION_METAMAP_METAMAP_CLIENT_ID`
+   - `VALIDACION_METAMAP_METAMAP_CLIENT_SECRET`
 3. Dejar el archivo al lado del ejecutable o definir `VALIDACION_METAMAP_CONFIG_PATH`
+
+Variables opcionales relevantes:
+
+- `VALIDACION_METAMAP_MEDIA_DOWNLOADS_DIR`: carpeta donde se guarda la media descargada. Si es relativa, se resuelve al lado del runtime.
 
 ## Desarrollo local
 
