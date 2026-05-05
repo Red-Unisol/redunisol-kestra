@@ -12,6 +12,7 @@ Dominio para automatizaciones de analisis y calificacion de credito.
 - `consulta_quiebra_credix_http`
 - `consulta_padron_a13`
 - `consulta_empleador`
+- `consulta_cuad`
 
 ## renovacion_cruz_del_eje
 
@@ -448,3 +449,78 @@ Notas:
 ### Namespace files
 
 - `kestra/automations/analisis-credito/files/consulta_empleador/**`
+
+## consulta_cuad
+
+Consulta CUAD Santa Fe por CUIL. El flujo resuelve el captcha del login con OCR, abre `movimiento.asp` y devuelve los totales de cupo.
+
+### Entrada
+
+Webhook `POST` con JSON:
+
+```json
+{ "cuil": "23-33312151-4" }
+```
+
+Tambien acepta:
+
+- `cuit` o `cuit_cuil`
+- un string simple en el body, tratado como CUIL
+
+Debe venir un identificador de 11 digitos.
+
+### Salida
+
+- `ok` (bool)
+- `found` (bool)
+- `status` (`ok` | `sin_resultado` | `sesion_invalida` | `respuesta_no_reconocida` | `error`)
+- `cuil` (string)
+- `bruto` (string)
+- `neto` (string)
+- `cupo` (string)
+- `afectado` (string)
+- `disponible` (string)
+- `deuda` (string)
+- `captcha_attempts` (int)
+- `data_json` (string JSON con el payload minimizado)
+- `response_json` (string JSON con contrato minimo)
+- `error` (string | vacio)
+
+Contrato serializado en `response_json`:
+
+- `{"ok":true,"found":true,"status":"ok","cuil":"23333121514","captcha_attempts":2,"data":{...},"error":"","source":"cuad_movimiento"}`
+- `{"ok":true,"found":false,"status":"sin_resultado",...}` si CUAD no devuelve movimiento
+- `{"ok":false,...}` si el login, OCR o la consulta fallan
+
+### Variables
+
+Configuracion inline en el flow:
+
+- `CUAD_LOGIN_URL=https://www.santafe.gov.ar/cuad/`
+- `CUAD_MOVIMIENTO_URL=https://www.santafe.gov.ar/cuad/movimiento.asp`
+- `CUAD_EMR_NOMBRE=Santa Fe - ACTIVOS`
+- `CUAD_EMR_ID=10`
+- `CUAD_TIMEOUT_SECONDS=60`
+- `CUAD_MAX_INTENTOS=10`
+- `CUAD_CAPTCHA_LEN=6`
+- `CUAD_OCR_MODEL=mistral-ocr-latest`
+- `CUAD_PRE_SUBMIT_DELAY_MS=1500`
+- `CUAD_POST_SUBMIT_WAIT_MS=3000`
+- `CUAD_DEBUG=false`
+
+Secrets:
+
+- `CUAD_USUARIO`
+- `CUAD_PASSWORD`
+- `MISTRAL_API_KEY`
+- `ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_KEY`
+
+Notas:
+
+- corre con Playwright en contenedor propio para evitar `pip install` en cada ejecucion
+- el OCR se resuelve por HTTP directo contra Mistral, sin depender del SDK
+- el flow entra naturalmente en `analisis-credito` porque su contrato es consulta por CUIL con respuesta sincrona
+
+### Namespace files
+
+- `kestra/automations/analisis-credito/files/consulta_cuad/**`

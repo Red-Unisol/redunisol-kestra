@@ -46,3 +46,6 @@ jobs:
 
       - name: Build ARCA Padron A13 image
         run: docker build kestra/automations/analisis-credito/docker/arca-padron-a13 -t analisis-credito-arca-padron-a13:test
+
+      - name: Build Consulta CUAD image
+        run: docker build kestra/automations/analisis-credito/docker/consulta-cuad -t analisis-credito-consulta-cuad:test
