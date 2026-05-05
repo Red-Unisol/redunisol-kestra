@@ -469,6 +469,37 @@ Importante:
 - el valor real no debe copiarse en `.env.example` ni en documentacion publica versionada
 - es la key efectiva del path del webhook, por lo que debe tratarse como secreto
 
+### Runtime Analisis Credito: consulta CUAD secrets
+
+Referenciados hoy desde el flow `kestra/automations/analisis-credito/flows/consulta_cuad.yaml`.
+
+Secrets cargados en runtime:
+
+- `ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_KEY`
+- `CUAD_USUARIO`
+- `CUAD_PASSWORD`
+- `MISTRAL_API_KEY`
+
+En la infraestructura actual corresponden a:
+
+- `SECRET_ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_KEY`
+- `SECRET_CUAD_USUARIO`
+- `SECRET_CUAD_PASSWORD`
+- `SECRET_MISTRAL_API_KEY`
+
+Uso esperado desde el flow:
+
+- `{{ secret('ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_KEY') }}`
+- `{{ secret('CUAD_USUARIO') }}`
+- `{{ secret('CUAD_PASSWORD') }}`
+- `{{ secret('MISTRAL_API_KEY') }}`
+
+Importante:
+
+- `CUAD_USUARIO` y `CUAD_PASSWORD` autentican contra el login web de Santa Fe CUAD
+- `MISTRAL_API_KEY` habilita la resolucion OCR del captcha
+- el valor real no debe copiarse en `.env.example` ni en documentacion publica versionada
+
 ## Cuando Usar Cada Tipo
 
 Usar `envs` cuando el dato no es sensible:

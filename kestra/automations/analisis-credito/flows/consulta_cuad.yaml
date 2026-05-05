@@ -1,0 +1,93 @@
+id: consulta_cuad
+namespace: redunisol
+
+description: Consulta CUAD Santa Fe por CUIL resolviendo captcha con OCR y devuelve los totales de movimiento.asp.
+
+labels:
+  env: prod
+  team: redunisol
+  kind: webhook
+  domain: analisis-credito
+  integration: cuad
+  transport: browser-ocr
+
+tasks:
+  - id: consultar_cuad
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+      include:
+        - consulta_cuad/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: ghcr.io/red-unisol/analisis-credito-consulta-cuad:latest
+    env:
+      TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
+      CUAD_LOGIN_URL: "https://www.santafe.gov.ar/cuad/"
+      CUAD_MOVIMIENTO_URL: "https://www.santafe.gov.ar/cuad/movimiento.asp"
+      CUAD_EMR_NOMBRE: "Santa Fe - ACTIVOS"
+      CUAD_EMR_ID: "10"
+      CUAD_TIMEOUT_SECONDS: "60"
+      CUAD_MAX_INTENTOS: "10"
+      CUAD_CAPTCHA_LEN: "6"
+      CUAD_OCR_MODEL: "mistral-ocr-latest"
+      CUAD_PRE_SUBMIT_DELAY_MS: "1500"
+      CUAD_POST_SUBMIT_WAIT_MS: "3000"
+      CUAD_DEBUG: "false"
+      CUAD_USUARIO: "{{ secret('CUAD_USUARIO') }}"
+      CUAD_PASSWORD: "{{ secret('CUAD_PASSWORD') }}"
+      MISTRAL_API_KEY: "{{ secret('MISTRAL_API_KEY') }}"
+    commands:
+      - python -m consulta_cuad.kestra_webhook_entrypoint
+
+outputs:
+  - id: ok
+    type: BOOLEAN
+    value: "{{ outputs.consultar_cuad.vars.ok }}"
+  - id: found
+    type: BOOLEAN
+    value: "{{ outputs.consultar_cuad.vars.found }}"
+  - id: status
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.status }}"
+  - id: cuil
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.cuil }}"
+  - id: bruto
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.bruto }}"
+  - id: neto
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.neto }}"
+  - id: cupo
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.cupo }}"
+  - id: afectado
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.afectado }}"
+  - id: disponible
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.disponible }}"
+  - id: deuda
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.deuda }}"
+  - id: captcha_attempts
+    type: INT
+    value: "{{ outputs.consultar_cuad.vars.captcha_attempts }}"
+  - id: data_json
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.data_json }}"
+  - id: response_json
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.response_json }}"
+  - id: error
+    type: STRING
+    value: "{{ outputs.consultar_cuad.vars.error }}"
+
+triggers:
+  - id: webhook
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "{{ secret('ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_KEY') }}"
+    wait: true
+    returnOutputs: true
+    responseContentType: application/json
