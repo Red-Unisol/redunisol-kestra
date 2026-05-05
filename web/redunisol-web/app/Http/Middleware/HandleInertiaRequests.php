@@ -65,7 +65,7 @@ class HandleInertiaRequests extends Middleware
      */
     protected function getSeoData(Request $request): array
     {
-        $appName = config('app.name', 'RedúniSol');
+        $appName = config('app.name', 'Red Unisol');
         $currentUrl = $request->url();
         $defaultDescription = 'Soluciones de crédito personalizadas para jubilados y policías';
 

@@ -24,19 +24,19 @@ class UpdateSeoFieldsSeeder extends Seeder
     {
         $seoMappings = [
             '/' => [
-                'meta_title' => 'Préstamos para Jubilados y Policías | RedúniSol',
+                'meta_title' => 'Préstamos para Jubilados y Policías',
                 'meta_description' => 'Soluciones de crédito personalizadas para jubilados y policías. Préstamos accesibles con tasas competitivas.',
                 'keyword' => 'préstamos jubilados',
                 'index' => true,
             ],
             '/prestamos-para-jubilados' => [
-                'meta_title' => 'Préstamos para Jubilados | RedúniSol',
+                'meta_title' => 'Préstamos para Jubilados',
                 'meta_description' => 'Préstamos especializados para jubilados con tasas preferenciales y trámites rápidos.',
                 'keyword' => 'préstamos jubilados',
                 'index' => true,
             ],
             '/prestamos-para-policias' => [
-                'meta_title' => 'Préstamos para Policías | RedúniSol',
+                'meta_title' => 'Préstamos para Policías',
                 'meta_description' => 'Líneas de crédito especiales para policías de todas las provincias con beneficios exclusivos.',
                 'keyword' => 'préstamos policías',
                 'index' => true,
@@ -53,7 +53,7 @@ class UpdateSeoFieldsSeeder extends Seeder
 
         // Update remaining pages with default values
         Page::whereNull('meta_title')->each(function (Page $page) {
-            $appName = 'RedúniSol';
+            $appName = 'Red Unisol';
             $page->update([
                 'meta_title' => strlen($page->title) > 50
                     ? substr($page->title, 0, 50) . '... | ' . $appName

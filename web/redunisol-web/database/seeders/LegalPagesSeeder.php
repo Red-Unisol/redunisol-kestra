@@ -13,7 +13,7 @@ class LegalPagesSeeder extends Seeder
             [
                 'title'            => 'Sobre Nosotros',
                 'slug'             => '/sobre-nosotros',
-                'meta_title'       => 'Sobre Nosotros | Red Unisol',
+                'meta_title'       => 'Sobre Nosotros',
                 'meta_description' => 'Conocé la historia y misión de Red Unisol, la red de mutuales que brinda ayudas económicas en Argentina.',
                 'keyword'          => 'sobre nosotros red unisol mutual',
                 'index'            => true,
@@ -43,7 +43,7 @@ class LegalPagesSeeder extends Seeder
             [
                 'title'            => 'Contacto',
                 'slug'             => '/contacto',
-                'meta_title'       => 'Contacto | Red Unisol',
+                'meta_title'       => 'Contacto',
                 'meta_description' => 'Contactate con Red Unisol. Estamos para ayudarte con tu solicitud de crédito.',
                 'keyword'          => 'contacto red unisol',
                 'index'            => true,
@@ -64,7 +64,7 @@ class LegalPagesSeeder extends Seeder
             [
                 'title'            => 'Políticas de Privacidad',
                 'slug'             => '/politicas-de-privacidad',
-                'meta_title'       => 'Políticas de Privacidad | Red Unisol',
+                'meta_title'       => 'Políticas de Privacidad',
                 'meta_description' => 'Conocé cómo Red Unisol protege tus datos personales según la Ley 25.326.',
                 'keyword'          => 'política privacidad datos personales red unisol',
                 'index'            => true,
@@ -81,7 +81,7 @@ class LegalPagesSeeder extends Seeder
             [
                 'title'            => 'Gestión de Datos',
                 'slug'             => '/gestion-de-datos',
-                'meta_title'       => 'Gestión de Datos | Red Unisol',
+                'meta_title'       => 'Gestión de Datos',
                 'meta_description' => 'Información sobre cómo gestionamos tus datos personales en Red Unisol.',
                 'keyword'          => 'gestión datos personales red unisol baja datos',
                 'index'            => true,

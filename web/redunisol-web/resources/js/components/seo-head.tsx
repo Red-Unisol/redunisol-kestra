@@ -28,7 +28,7 @@ export default function SeoHead({
     schemas = [],
     children,
 }: SeoHeadProps) {
-    const appName = 'RedúniSol';
+    const appName = 'Red Unisol';
     const fullTitle = title.includes(appName) ? title : `${title} | ${appName}`;
 
     return (
