@@ -17,6 +17,8 @@ from consulta_cuad.service import (  # noqa: E402
     decodificar_respuesta_http,
     es_respuesta_sin_resultado,
     normalize_cuil,
+    obtener_response_ok,
+    obtener_response_status,
     obtener_frames,
     parse_search_request,
     parsear_totales_cuad,
@@ -150,6 +152,16 @@ class ConsultaCuadTests(unittest.TestCase):
                 return b"Identificaci\xf3n"
 
         self.assertEqual(decodificar_respuesta_http(StubResponse()), "Identificaci\u00f3n")
+
+    def test_response_helpers_accept_property_style_apiresponse(self) -> None:
+        class StubResponse:
+            ok = True
+            status = 200
+
+        response = StubResponse()
+
+        self.assertTrue(obtener_response_ok(response))
+        self.assertEqual(obtener_response_status(response), 200)
 
     def test_obtener_frames_falls_back_to_selector_detection(self) -> None:
         login_frame = self.StubFrame(

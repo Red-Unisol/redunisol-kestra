@@ -630,14 +630,30 @@ def consultar_movimiento(page: "Page", request: SearchRequest, config: CuadConfi
         },
         timeout=config.timeout_ms,
     )
-    if not response.ok():
-        raise RuntimeError(f"HTTP {response.status()} al consultar movimiento.asp")
+    if not obtener_response_ok(response):
+        raise RuntimeError(f"HTTP {obtener_response_status(response)} al consultar movimiento.asp")
     return decodificar_respuesta_http(response)
+
+
+def obtener_response_ok(response: "APIResponse") -> bool:
+    ok = getattr(response, "ok", False)
+    return bool(ok() if callable(ok) else ok)
+
+
+def obtener_response_status(response: "APIResponse") -> int:
+    status = getattr(response, "status", 0)
+    return int(status() if callable(status) else status)
+
+
+def obtener_response_headers(response: "APIResponse") -> dict[str, str]:
+    headers = getattr(response, "headers", {})
+    raw_headers = headers() if callable(headers) else headers
+    return dict(raw_headers)
 
 
 def decodificar_respuesta_http(response: "APIResponse") -> str:
     cuerpo = response.body()
-    headers = response.headers() if callable(getattr(response, "headers", None)) else response.headers
+    headers = obtener_response_headers(response)
     content_type = headers.get("content-type", "").lower()
 
     if "charset=" in content_type:
