@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 BOTON_INGRESAR_SELECTOR = "#dAceptar"
+LOGIN_INPUT_SELECTORS = ("#user", "#password", "#txtCaptcha")
 MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr"
 MISTRAL_OCR_PROMPT = (
     "Lee este captcha y responde unicamente con 6 digitos exactos. "
@@ -315,8 +316,18 @@ def _iniciar_login(page: "Page", config: CuadConfig) -> None:
     page.goto(config.login_url, wait_until="domcontentloaded")
     login_frame, captcha_frame = obtener_frames(page)
     if login_frame is None:
+        _log_event(
+            "consulta_cuad_login_frame_missing",
+            page_url=page.url,
+            frames=describir_frames(page),
+        )
         raise RuntimeError("No se encontro el frame del login.")
     if captcha_frame is None:
+        _log_event(
+            "consulta_cuad_captcha_frame_missing",
+            page_url=page.url,
+            frames=describir_frames(page),
+        )
         raise RuntimeError("No se encontro el frame del captcha.")
 
     login_frame.wait_for_selector("#user")
@@ -357,9 +368,62 @@ def buscar_frame_por_url(page: "Page", fragmento: str) -> "Frame | None":
     return None
 
 
+def contar_selector(frame: "Frame", selector: str) -> int:
+    try:
+        return frame.locator(selector).count()
+    except Exception:
+        return 0
+
+
+def frame_tiene_selectores(frame: "Frame", selectores: tuple[str, ...]) -> bool:
+    return all(contar_selector(frame, selector) > 0 for selector in selectores)
+
+
+def buscar_frame_por_selectores(page: "Page", selectores: tuple[str, ...]) -> "Frame | None":
+    for frame in page.frames:
+        if frame_tiene_selectores(frame, selectores):
+            return frame
+    return None
+
+
+def buscar_frame_captcha(page: "Page", login_frame: "Frame | None") -> "Frame | None":
+    if login_frame is not None and contar_selector(login_frame, "img") > 0:
+        return login_frame
+
+    for frame in page.frames:
+        if login_frame is not None and frame == login_frame:
+            continue
+        if contar_selector(frame, "img") > 0:
+            return frame
+    return None
+
+
+def describir_frames(page: "Page") -> list[dict[str, Any]]:
+    frames: list[dict[str, Any]] = []
+    for index, frame in enumerate(page.frames):
+        frames.append(
+            {
+                "index": index,
+                "name": frame.name,
+                "url": frame.url,
+                "has_user": contar_selector(frame, "#user") > 0,
+                "has_password": contar_selector(frame, "#password") > 0,
+                "has_txtCaptcha": contar_selector(frame, "#txtCaptcha") > 0,
+                "img_count": contar_selector(frame, "img"),
+            }
+        )
+    return frames
+
+
 def obtener_frames(page: "Page") -> tuple["Frame | None", "Frame | None"]:
     login_frame = buscar_frame_por_url(page, "login.asp?Modo=M")
+    if login_frame is None:
+        login_frame = buscar_frame_por_selectores(page, LOGIN_INPUT_SELECTORS)
+
     captcha_frame = buscar_frame_por_url(page, "Captcha/aspcaptcha.asp")
+    if captcha_frame is None:
+        captcha_frame = buscar_frame_captcha(page, login_frame)
+
     return login_frame, captcha_frame
 
 
