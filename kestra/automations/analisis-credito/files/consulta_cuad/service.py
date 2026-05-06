@@ -158,19 +158,11 @@ def consultar_cuad(request: SearchRequest, config: CuadConfig) -> dict[str, Any]
         )
         page = browser.new_page()
         page.set_default_timeout(config.timeout_ms)
+        captcha_attempts = 0
 
         try:
             _iniciar_login(page, config)
             captcha_attempts = _resolver_login(page, config)
-            html_movimiento = abrir_movimiento(page, config)
-            if es_sesion_invalida(html_movimiento):
-                return build_error_result(
-                    request,
-                    "sesion_invalida",
-                    "El login no quedo activo al abrir movimiento.asp",
-                    captcha_attempts=captcha_attempts,
-                )
-
             html = consultar_movimiento(page, request, config)
 
             if es_sesion_invalida(html):
@@ -196,6 +188,13 @@ def consultar_cuad(request: SearchRequest, config: CuadConfig) -> dict[str, Any]
             return build_success_result(
                 request,
                 totales,
+                captcha_attempts=captcha_attempts,
+            )
+        except Exception as exc:
+            return build_error_result(
+                request,
+                "error",
+                str(exc),
                 captcha_attempts=captcha_attempts,
             )
         finally:
@@ -601,11 +600,6 @@ def procesar_captcha_con_mistral(contenido_img: bytes, intento: int, config: Cua
     digits = "".join(ch for ch in markdown if ch.isdigit())[: config.captcha_len]
     _log_event("consulta_cuad_ocr_fallback", intento=intento, captcha=digits, markdown=markdown[:80])
     return digits
-
-
-def abrir_movimiento(page: "Page", config: CuadConfig) -> str:
-    page.goto(config.movimiento_url, wait_until="domcontentloaded")
-    return page.content()
 
 
 def consultar_movimiento(page: "Page", request: SearchRequest, config: CuadConfig) -> str:
