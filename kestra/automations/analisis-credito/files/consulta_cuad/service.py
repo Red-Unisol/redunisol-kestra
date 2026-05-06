@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import time
 from typing import Any, TYPE_CHECKING
 
 import requests
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
 
 BOTON_INGRESAR_SELECTOR = "#dAceptar"
 LOGIN_INPUT_SELECTORS = ("#user", "#password", "#txtCaptcha")
+LOGIN_FRAME_DISCOVERY_TIMEOUT_MS = 8_000
+LOGIN_FRAME_POLL_INTERVAL_MS = 250
 MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr"
 MISTRAL_OCR_PROMPT = (
     "Lee este captcha y responde unicamente con 6 digitos exactos. "
@@ -314,7 +317,10 @@ def build_output_payload(result: dict[str, Any]) -> dict[str, Any]:
 
 def _iniciar_login(page: "Page", config: CuadConfig) -> None:
     page.goto(config.login_url, wait_until="domcontentloaded")
-    login_frame, captcha_frame = obtener_frames(page)
+    login_frame, captcha_frame = esperar_frames_login(
+        page,
+        timeout_ms=min(config.timeout_ms, LOGIN_FRAME_DISCOVERY_TIMEOUT_MS),
+    )
     if login_frame is None:
         _log_event(
             "consulta_cuad_login_frame_missing",
@@ -368,6 +374,13 @@ def buscar_frame_por_url(page: "Page", fragmento: str) -> "Frame | None":
     return None
 
 
+def buscar_frame_por_nombre(page: "Page", nombre: str) -> "Frame | None":
+    for frame in page.frames:
+        if frame.name == nombre:
+            return frame
+    return None
+
+
 def contar_selector(frame: "Frame", selector: str) -> int:
     try:
         return frame.locator(selector).count()
@@ -386,15 +399,41 @@ def buscar_frame_por_selectores(page: "Page", selectores: tuple[str, ...]) -> "F
     return None
 
 
+def frame_tiene_captcha(frame: "Frame") -> bool:
+    return contar_selector(frame, "img") > 0
+
+
+def obtener_main_frame(page: "Page") -> "Frame | None":
+    try:
+        return page.main_frame
+    except Exception:
+        frames = list(page.frames)
+        return frames[0] if frames else None
+
+
 def buscar_frame_captcha(page: "Page", login_frame: "Frame | None") -> "Frame | None":
-    if login_frame is not None and contar_selector(login_frame, "img") > 0:
+    if login_frame is not None and frame_tiene_captcha(login_frame):
         return login_frame
 
+    main_frame = obtener_main_frame(page)
+    candidates: list[tuple[int, int, "Frame"]] = []
     for frame in page.frames:
         if login_frame is not None and frame == login_frame:
             continue
-        if contar_selector(frame, "img") > 0:
-            return frame
+        if main_frame is not None and frame == main_frame:
+            continue
+        img_count = contar_selector(frame, "img")
+        if img_count <= 0:
+            continue
+        prefer_blank_url = 0 if (frame.url == "" or frame.url == "about:blank") else 1
+        candidates.append((prefer_blank_url, img_count, frame))
+
+    if candidates:
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[0][2]
+
+    if main_frame is not None and frame_tiene_captcha(main_frame):
+        return main_frame
     return None
 
 
@@ -417,14 +456,33 @@ def describir_frames(page: "Page") -> list[dict[str, Any]]:
 
 def obtener_frames(page: "Page") -> tuple["Frame | None", "Frame | None"]:
     login_frame = buscar_frame_por_url(page, "login.asp?Modo=M")
+    if login_frame is not None and not frame_tiene_selectores(login_frame, LOGIN_INPUT_SELECTORS):
+        login_frame = None
+    if login_frame is None:
+        login_frame = buscar_frame_por_nombre(page, "iContenido")
+    if login_frame is not None and not frame_tiene_selectores(login_frame, LOGIN_INPUT_SELECTORS):
+        login_frame = None
     if login_frame is None:
         login_frame = buscar_frame_por_selectores(page, LOGIN_INPUT_SELECTORS)
 
     captcha_frame = buscar_frame_por_url(page, "Captcha/aspcaptcha.asp")
+    if captcha_frame is not None and not frame_tiene_captcha(captcha_frame):
+        captcha_frame = None
     if captcha_frame is None:
         captcha_frame = buscar_frame_captcha(page, login_frame)
 
     return login_frame, captcha_frame
+
+
+def esperar_frames_login(page: "Page", timeout_ms: int) -> tuple["Frame | None", "Frame | None"]:
+    deadline = time.monotonic() + max(timeout_ms, 0) / 1000
+    while True:
+        login_frame, captcha_frame = obtener_frames(page)
+        if login_frame is not None and captcha_frame is not None:
+            return login_frame, captcha_frame
+        if time.monotonic() >= deadline:
+            return login_frame, captcha_frame
+        page.wait_for_timeout(LOGIN_FRAME_POLL_INTERVAL_MS)
 
 
 def cargar_input(frame: "Frame", selector: str, texto: str, nombre_campo: str) -> str:
