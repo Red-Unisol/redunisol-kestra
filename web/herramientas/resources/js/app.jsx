@@ -297,6 +297,18 @@ function App({ branding, tools }) {
                             </div>
                         </form>
 
+                        {loading && selectedTool?.id === 'consulta-cuad' && (
+                            <section className="loading-state" role="status" aria-live="polite">
+                                <div className="loading-state__spinner" aria-hidden="true" />
+                                <div className="loading-state__body">
+                                    <h3 className="loading-state__headline">Consultando CUAD</h3>
+                                    <p className="loading-state__copy">
+                                        Esperando la respuesta del flujo. Puede demorar por el login, el captcha y la lectura OCR.
+                                    </p>
+                                </div>
+                            </section>
+                        )}
+
                         {(error || result) && (
                             <section className={`result result--${resultTone}`}>
                                 <h3 className="result__headline">{getResultHeadline(selectedTool?.id, result, error)}</h3>
@@ -407,6 +419,43 @@ function App({ branding, tools }) {
                                                 </div>
                                             </>
                                         )}
+
+                                        {selectedTool?.id === 'consulta-cuad' && (
+                                            <>
+                                                <div className="result__metric">
+                                                    <span>CUIL</span>
+                                                    <strong>{result.cuil || 'Sin dato'}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Bruto</span>
+                                                    <strong>{formatCurrencyValue(result.bruto)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Neto</span>
+                                                    <strong>{formatCurrencyValue(result.neto)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Cupo</span>
+                                                    <strong>{formatCurrencyValue(result.cupo)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Afectado</span>
+                                                    <strong>{formatCurrencyValue(result.afectado)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Disponible</span>
+                                                    <strong>{formatCurrencyValue(result.disponible)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Deuda</span>
+                                                    <strong>{formatCurrencyValue(result.deuda)}</strong>
+                                                </div>
+                                                <div className="result__metric">
+                                                    <span>Intentos captcha</span>
+                                                    <strong>{result.captcha_attempts ?? 'Sin dato'}</strong>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
@@ -502,6 +551,13 @@ function getResultTone(toolId, result, error) {
         return 'warning';
     }
 
+    if (toolId === 'consulta-cuad') {
+        if (result?.ok && result?.found) {
+            return 'success';
+        }
+        return 'warning';
+    }
+
     return 'warning';
 }
 
@@ -542,6 +598,16 @@ function getResultHeadline(toolId, result, error) {
     }
 
     if (toolId === 'consulta-empleador') {
+        if (result.ok && result.found) {
+            return 'Consulta completada';
+        }
+        if (result.ok) {
+            return 'Sin coincidencias';
+        }
+        return 'Respuesta de validacion';
+    }
+
+    if (toolId === 'consulta-cuad') {
         if (result.ok && result.found) {
             return 'Consulta completada';
         }
@@ -603,6 +669,16 @@ function getResultCopy(toolId, result, error) {
         }
         if (result.ok && !result.found) {
             return 'No se encontraron datos para el identificador ingresado.';
+        }
+        return result.message || result.error || 'La consulta devolvio una respuesta no esperada.';
+    }
+
+    if (toolId === 'consulta-cuad') {
+        if (result.ok && result.found) {
+            return 'Datos obtenidos correctamente desde CUAD.';
+        }
+        if (result.ok && !result.found) {
+            return 'No se encontraron datos para el CUIL ingresado.';
         }
         return result.message || result.error || 'La consulta devolvio una respuesta no esperada.';
     }
@@ -690,6 +766,20 @@ function getEmpleadorField(result, field) {
     } catch {
         return '';
     }
+}
+
+function formatCurrencyValue(rawValue) {
+    if (rawValue === null || rawValue === undefined || rawValue === '') {
+        return 'No informado';
+    }
+
+    const numericValue = Number.parseFloat(String(rawValue).replace(',', '.'));
+
+    if (!Number.isFinite(numericValue)) {
+        return String(rawValue);
+    }
+
+    return currencyFormatter.format(numericValue);
 }
 
 if (rootElement) {
