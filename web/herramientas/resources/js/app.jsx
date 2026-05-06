@@ -297,6 +297,18 @@ function App({ branding, tools }) {
                             </div>
                         </form>
 
+                        {loading && selectedTool?.id === 'consulta-cuad' && (
+                            <section className="loading-state" role="status" aria-live="polite">
+                                <div className="loading-state__spinner" aria-hidden="true" />
+                                <div className="loading-state__body">
+                                    <h3 className="loading-state__headline">Consultando CUAD</h3>
+                                    <p className="loading-state__copy">
+                                        Esperando la respuesta del flujo. Puede demorar por el login, el captcha y la lectura OCR.
+                                    </p>
+                                </div>
+                            </section>
+                        )}
+
                         {(error || result) && (
                             <section className={`result result--${resultTone}`}>
                                 <h3 className="result__headline">{getResultHeadline(selectedTool?.id, result, error)}</h3>
