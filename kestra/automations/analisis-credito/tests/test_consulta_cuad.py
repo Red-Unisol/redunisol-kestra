@@ -17,12 +17,33 @@ from consulta_cuad.service import (  # noqa: E402
     decodificar_respuesta_http,
     es_respuesta_sin_resultado,
     normalize_cuil,
+    obtener_frames,
     parse_search_request,
     parsear_totales_cuad,
 )
 
 
 class ConsultaCuadTests(unittest.TestCase):
+    class StubLocator:
+        def __init__(self, count: int) -> None:
+            self._count = count
+
+        def count(self) -> int:
+            return self._count
+
+    class StubFrame:
+        def __init__(self, url: str, selectors: dict[str, int], *, name: str = "") -> None:
+            self.url = url
+            self.name = name
+            self._selectors = selectors
+
+        def locator(self, selector: str) -> "ConsultaCuadTests.StubLocator":
+            return ConsultaCuadTests.StubLocator(self._selectors.get(selector, 0))
+
+    class StubPage:
+        def __init__(self, frames: list["ConsultaCuadTests.StubFrame"]) -> None:
+            self.frames = frames
+
     def test_parse_search_request_normalizes_cuil(self) -> None:
         request = parse_search_request({"cuil": "23-33312151-4"})
 
@@ -128,6 +149,29 @@ class ConsultaCuadTests(unittest.TestCase):
                 return b"Identificaci\xf3n"
 
         self.assertEqual(decodificar_respuesta_http(StubResponse()), "Identificaci\u00f3n")
+
+    def test_obtener_frames_falls_back_to_selector_detection(self) -> None:
+        login_frame = self.StubFrame(
+            "https://www.santafe.gov.ar/cuad/",
+            {
+                "#user": 1,
+                "#password": 1,
+                "#txtCaptcha": 1,
+                "img": 1,
+            },
+            name="main",
+        )
+        other_frame = self.StubFrame(
+            "https://www.santafe.gov.ar/otra",
+            {"img": 0},
+            name="other",
+        )
+        page = self.StubPage([login_frame, other_frame])
+
+        detected_login_frame, detected_captcha_frame = obtener_frames(page)
+
+        self.assertIs(detected_login_frame, login_frame)
+        self.assertIs(detected_captcha_frame, login_frame)
 
 
 if __name__ == "__main__":
