@@ -10,7 +10,7 @@ return [
     |
     */
 
-    'app_name' => env('APP_NAME', 'RedúniSol'),
+    'app_name' => env('APP_NAME', 'Red Unisol'),
 
     /*
     |--------------------------------------------------------------------------
@@ -35,7 +35,7 @@ return [
 
         // Default values
         'default_description' => 'Soluciones de crédito personalizadas para jubilados y policías',
-        'default_keywords' => 'préstamos, jubilados, policías, crédito, RedúniSol',
+        'default_keywords' => 'préstamos, jubilados, policías, crédito, Red Unisol',
     ],
 
     /*
@@ -116,7 +116,7 @@ return [
         'enabled' => true,
 
         'organization' => [
-            'name' => env('APP_NAME', 'RedúniSol'),
+            'name' => env('APP_NAME', 'Red Unisol'),
             'url' => env('APP_URL', 'https://redunisol.com'),
             'logo' => env('APP_URL') . '/logo.png',
             'description' => 'Soluciones de crédito personalizadas para jubilados y policías',

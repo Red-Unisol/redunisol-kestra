@@ -63,6 +63,8 @@ Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
 Route::get('/blog/{slug}', [BlogController::class, 'show'])->name('blog.show');
 Route::get('/category/{slug}', [BlogController::class, 'category'])->name('blog.category');
 
+Route::get('/finalizar', [\App\Http\Controllers\FinalizarController::class, 'show'])->name('finalizar');
+
 require __DIR__.'/settings.php';
 
 // ──────────────────────────────────────────────────────────────
