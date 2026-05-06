@@ -297,14 +297,12 @@ function App({ branding, tools }) {
                             </div>
                         </form>
 
-                        {loading && selectedTool?.id === 'consulta-cuad' && (
+                        {loading && selectedTool && (
                             <section className="loading-state" role="status" aria-live="polite">
                                 <div className="loading-state__spinner" aria-hidden="true" />
                                 <div className="loading-state__body">
-                                    <h3 className="loading-state__headline">Consultando CUAD</h3>
-                                    <p className="loading-state__copy">
-                                        Esperando la respuesta del flujo. Puede demorar por el login, el captcha y la lectura OCR.
-                                    </p>
+                                    <h3 className="loading-state__headline">{getLoadingHeadline(selectedTool)}</h3>
+                                    <p className="loading-state__copy">{getLoadingCopy(selectedTool?.id)}</p>
                                 </div>
                             </section>
                         )}
@@ -780,6 +778,34 @@ function formatCurrencyValue(rawValue) {
     }
 
     return currencyFormatter.format(numericValue);
+}
+
+function getLoadingHeadline(tool) {
+    if (!tool?.title) {
+        return 'Consultando herramienta';
+    }
+
+    return `Consultando ${tool.title}`;
+}
+
+function getLoadingCopy(toolId) {
+    if (toolId === 'consulta-cuad') {
+        return 'Esperando la respuesta del flujo. Puede demorar por el login, el captcha y la lectura OCR.';
+    }
+
+    if (toolId === 'consulta-quiebra-credix') {
+        return 'Esperando la respuesta del flujo. La consulta puede demorar mientras se procesan los criterios y se arma el resultado.';
+    }
+
+    if (toolId === 'consulta-empleador') {
+        return 'Esperando la respuesta del flujo. La consulta puede demorar mientras se valida el identificador y se recuperan los datos.';
+    }
+
+    if (toolId === 'consulta-tope-descuento-caja') {
+        return 'Esperando la respuesta del flujo. La consulta puede demorar mientras se recupera la informacion de caja.';
+    }
+
+    return 'Esperando la respuesta del flujo. La consulta puede demorar unos segundos.';
 }
 
 if (rootElement) {
