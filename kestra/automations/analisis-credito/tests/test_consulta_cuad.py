@@ -43,6 +43,7 @@ class ConsultaCuadTests(unittest.TestCase):
     class StubPage:
         def __init__(self, frames: list["ConsultaCuadTests.StubFrame"]) -> None:
             self.frames = frames
+            self.main_frame = frames[0] if frames else None
 
     def test_parse_search_request_normalizes_cuil(self) -> None:
         request = parse_search_request({"cuil": "23-33312151-4"})
@@ -172,6 +173,32 @@ class ConsultaCuadTests(unittest.TestCase):
 
         self.assertIs(detected_login_frame, login_frame)
         self.assertIs(detected_captcha_frame, login_frame)
+
+    def test_obtener_frames_prefers_named_login_frame_and_non_main_captcha_frame(self) -> None:
+        main_frame = self.StubFrame(
+            "https://www.santafe.gov.ar/cuad/login.asp",
+            {"img": 12},
+        )
+        login_frame = self.StubFrame(
+            "https://www.santafe.gov.ar/cuad/login.asp?Modo=M",
+            {
+                "#user": 1,
+                "#password": 1,
+                "#txtCaptcha": 1,
+                "img": 0,
+            },
+            name="iContenido",
+        )
+        captcha_frame = self.StubFrame(
+            "",
+            {"img": 1},
+        )
+        page = self.StubPage([main_frame, login_frame, captcha_frame])
+
+        detected_login_frame, detected_captcha_frame = obtener_frames(page)
+
+        self.assertIs(detected_login_frame, login_frame)
+        self.assertIs(detected_captcha_frame, captcha_frame)
 
 
 if __name__ == "__main__":
