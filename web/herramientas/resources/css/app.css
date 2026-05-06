@@ -376,10 +376,18 @@ input {
 .workspace--modal {
     width: min(640px, 100%);
     max-height: min(90vh, 960px);
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     margin-top: 0;
     background: var(--surface-strong);
     box-shadow: 0 28px 70px rgba(34, 55, 96, 0.16);
+}
+
+.workspace--modal::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 .form-grid {
