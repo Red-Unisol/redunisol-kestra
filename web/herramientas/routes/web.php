@@ -21,3 +21,7 @@ Route::post('/api/tools/consulta-quiebra-credix', [HerramientasController::class
 Route::post('/api/tools/consulta-empleador', [HerramientasController::class, 'consultaEmpleador'])
     ->withoutMiddleware([PreventRequestForgery::class])
     ->name('tools.consulta-empleador');
+
+Route::post('/api/tools/consulta-cuad', [HerramientasController::class, 'consultaCuad'])
+    ->withoutMiddleware([PreventRequestForgery::class])
+    ->name('tools.consulta-cuad');
