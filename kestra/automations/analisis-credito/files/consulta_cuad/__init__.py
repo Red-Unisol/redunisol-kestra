@@ -1,0 +1,1 @@
+"""Consulta CUAD helpers."""

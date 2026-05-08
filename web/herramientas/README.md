@@ -30,6 +30,8 @@ Copiar `.env.example` a `.env` y completar al menos:
 - `ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL`
 - `ANALISIS_CREDITO_CONSULTA_CAJA`
 - `ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL`
+- `ANALISIS_CREDITO_CONSULTA_EMPLEADOR_WEBHOOK_URL`
+- `ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_URL`
 - `ANALISIS_CREDITO_TIMEOUT_SECONDS`
 
 Cada una de esas URLs debe apuntar al webhook completo expuesto por Kestra para el flow correspondiente. Esas URLs quedan solo del lado servidor y no se exponen al navegador.
@@ -93,7 +95,7 @@ Archivos de deploy:
 
 Comportamiento esperado:
 
-- `dev`: deploy automatico al hacer push a `main` si hubo cambios en `web/herramientas/`
+- `dev`: deploy automatico al hacer push a `dev` si hubo cambios en `web/herramientas/`
 - `prod`: deploy manual via `workflow_dispatch`
 
 El runtime no vive en GitHub secrets. Vive en archivos cifrados versionados en Git:

@@ -51,12 +51,23 @@ return [
             'actionLabel' => 'Consultar empleador',
             'helper' => 'Ingresa el CUIL o DNI y el backend Laravel consulta el webhook protegido de Kestra.',
         ],
+        [
+            'id' => 'consulta-cuad',
+            'title' => 'Consulta CUAD Santa Fe',
+            'description' => 'Ingresa un CUIL y consulta bruto, neto, cupo, afectado, disponible y deuda desde CUAD.',
+            'category' => 'Analisis de credito',
+            'status' => 'active',
+            'icon' => 'credit-path',
+            'actionLabel' => 'Consultar CUAD',
+            'helper' => 'Ingresa el CUIL y el backend Laravel consulta el webhook protegido de Kestra.',
+        ],
     ],
     'proxy' => [
         'consulta_renovacion_url' => env('ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL'),
         'tope_descuento_caja_url' => env('ANALISIS_CREDITO_CONSULTA_CAJA'),
         'consulta_quiebra_credix_url' => env('ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL'),
         'consulta_empleador_url' => env('ANALISIS_CREDITO_CONSULTA_EMPLEADOR_WEBHOOK_URL'),
+        'consulta_cuad_url' => env('ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_URL'),
         'timeout_seconds' => (int) env('ANALISIS_CREDITO_TIMEOUT_SECONDS', 30),
     ],
 ];
