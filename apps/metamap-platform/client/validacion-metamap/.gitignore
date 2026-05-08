@@ -4,3 +4,4 @@ package-input/
 *.local.env
 *.env
 validacion-metamap.env
+media-validaciones/

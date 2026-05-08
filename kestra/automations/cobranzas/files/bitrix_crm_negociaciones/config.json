@@ -37,29 +37,29 @@
   "templates": {
     "52885": {
       "text_variables": [
-        "deal_title"
+        "contact_name"
       ]
     },
     "51764": {
       "text_variables": [
-        "deal_title",
+        "contact_name",
         "promise_amount"
       ]
     },
     "51765": {
       "text_variables": [
-        "deal_title",
+        "contact_name",
         "promise_amount"
       ]
     },
     "51770": {
       "text_variables": [
-        "deal_title"
+        "contact_name"
       ]
     },
     "52443": {
       "text_variables": [
-        "deal_title"
+        "contact_name"
       ]
     }
   }

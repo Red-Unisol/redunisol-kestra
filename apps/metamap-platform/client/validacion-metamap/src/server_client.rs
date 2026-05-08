@@ -3,7 +3,7 @@ use reqwest::blocking::{Client, Response};
 
 use crate::{
     config::ServerConfig,
-    models::{ValidationSearchResponse, ValidationSnapshot},
+    models::{ValidationReviewResponse, ValidationSearchResponse, ValidationSnapshot},
 };
 
 #[derive(Clone)]
@@ -52,6 +52,24 @@ impl ServerClient {
             .context("No se pudo decodificar la respuesta de validaciones del server.")?;
 
         Ok(payload.items)
+    }
+
+    pub fn mark_validation_reviewed(&self, verification_id: &str) -> Result<ValidationSnapshot> {
+        let response = self.request(
+            self.http
+                .post(format!(
+                    "{}/api/v1/validations/{}/review",
+                    self.base_url, verification_id
+                ))
+                .header("X-Client-Id", &self.client_id)
+                .header("X-Client-Secret", &self.client_secret),
+        )?;
+
+        let payload = response
+            .json::<ValidationReviewResponse>()
+            .context("No se pudo decodificar la respuesta de revision del server.")?;
+
+        Ok(payload.validation)
     }
 
     fn request(&self, builder: reqwest::blocking::RequestBuilder) -> Result<Response> {

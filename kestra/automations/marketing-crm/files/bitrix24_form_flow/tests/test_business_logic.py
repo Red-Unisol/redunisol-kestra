@@ -2,15 +2,29 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import os
+from pathlib import Path
+import sys
 import unittest
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from bitrix24_form_flow.kestra_form_intake_entrypoint import _apply_full_name_override
 from bitrix24_form_flow.form_processor.business_logic import (
     classify_lead,
     ingest_submission,
+    persist_submission,
+    prequalify_submission,
     process_form_body,
     process_submission,
 )
-from bitrix24_form_flow.form_processor.bcra_client import BcraConsultationResult, _argentina_timestamp
+from bitrix24_form_flow.form_processor.bcra_client import (
+    BcraConsultationResult,
+    _argentina_timestamp,
+    serialize_bcra_result,
+)
 from bitrix24_form_flow.form_processor.bcra_service import backfill_bcra_for_today
 from bitrix24_form_flow.form_processor.input_parser import normalize_business_input, parse_body
 from bitrix24_form_flow.form_processor.qualification import evaluate_qualification
@@ -184,6 +198,96 @@ class BusinessLogicTests(unittest.TestCase):
             message=None,
         )
 
+    def test_apply_full_name_override_uses_nombre_y_apellido_from_arca(self) -> None:
+        payload = {"full_name": "Lead Web Redunisol", "email": "juan@example.com"}
+        original_env = {key: os.environ.get(key) for key in (
+            "ARCA_RESOLVED_NOMBRE",
+            "ARCA_RESOLVED_APELLIDO",
+            "ARCA_RESOLVED_RAZON_SOCIAL",
+        )}
+        try:
+            os.environ["ARCA_RESOLVED_NOMBRE"] = "JUAN"
+            os.environ["ARCA_RESOLVED_APELLIDO"] = "PEREZ"
+            os.environ["ARCA_RESOLVED_RAZON_SOCIAL"] = ""
+
+            result = _apply_full_name_override(payload)
+        finally:
+            for key, value in original_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        self.assertEqual(result["full_name"], "JUAN PEREZ")
+        self.assertEqual(payload["full_name"], "Lead Web Redunisol")
+
+    def test_apply_full_name_override_keeps_existing_name_when_arca_is_empty(self) -> None:
+        payload = {"full_name": "Lead Web Redunisol", "email": "juan@example.com"}
+        original_env = {key: os.environ.get(key) for key in (
+            "ARCA_RESOLVED_NOMBRE",
+            "ARCA_RESOLVED_APELLIDO",
+            "ARCA_RESOLVED_RAZON_SOCIAL",
+        )}
+        try:
+            os.environ["ARCA_RESOLVED_NOMBRE"] = ""
+            os.environ["ARCA_RESOLVED_APELLIDO"] = ""
+            os.environ["ARCA_RESOLVED_RAZON_SOCIAL"] = ""
+
+            result = _apply_full_name_override(payload)
+        finally:
+            for key, value in original_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        self.assertIs(result, payload)
+        self.assertEqual(result["full_name"], "Lead Web Redunisol")
+
+    def test_ingest_submission_uses_arca_name_for_contact_and_lead(self) -> None:
+        payload = {
+            "full_name": "Lead Web Redunisol",
+            "email": "juan@example.com",
+            "whatsapp": "3511234567",
+            "cuil": "20-12345678-3",
+            "province": "Cordoba",
+            "employment_status": "Policia",
+            "payment_bank": "Banco de la Nacion Argentina",
+            "lead_source": "Google",
+        }
+        original_env = {key: os.environ.get(key) for key in (
+            "ARCA_RESOLVED_NOMBRE",
+            "ARCA_RESOLVED_APELLIDO",
+            "ARCA_RESOLVED_RAZON_SOCIAL",
+        )}
+        try:
+            os.environ["ARCA_RESOLVED_NOMBRE"] = "JUAN"
+            os.environ["ARCA_RESOLVED_APELLIDO"] = "PEREZ"
+            os.environ["ARCA_RESOLVED_RAZON_SOCIAL"] = ""
+
+            enriched_payload = _apply_full_name_override(payload)
+        finally:
+            for key, value in original_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        client = FakeBitrixClient()
+        result = ingest_submission(
+            enriched_payload,
+            env=self.env,
+            bitrix_client=client,
+            logger=SilentLogger(),
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(client.calls[1][0], "crm.contact.add")
+        self.assertEqual(client.calls[1][1]["fields"]["NAME"], "JUAN PEREZ")
+        self.assertEqual(client.calls[3][0], "crm.lead.add")
+        self.assertEqual(client.calls[3][1]["fields"]["TITLE"], "JUAN PEREZ")
+        self.assertEqual(client.calls[3][1]["fields"]["NAME"], "JUAN PEREZ")
+
     def test_argentina_timestamp_converts_from_utc(self) -> None:
         checked_at = _argentina_timestamp(datetime(2026, 4, 15, 20, 30, 0, tzinfo=timezone.utc))
 
@@ -223,6 +327,23 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(submission.payment_bank.key, "banco_de_la_nacion_argentina")
         self.assertEqual(submission.lead_source.key, "google")
 
+    def test_normalize_docente_payload(self) -> None:
+        submission = normalize_business_input(
+            {
+                "full_name": "Maria Lopez",
+                "email": "maria@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "27-12345678-5",
+                "province": "Cordoba",
+                "employment_status": "Docente",
+                "payment_bank": "Banco de la Provincia de Cordoba S.A.",
+                "lead_source": "Google",
+            }
+        )
+
+        self.assertEqual(submission.employment_status.key, "docente")
+        self.assertEqual(submission.employment_status.bitrix_id, "3745")
+
     def test_qualification_rejects_non_eligible_province(self) -> None:
         submission = normalize_business_input(
             {
@@ -241,6 +362,82 @@ class BusinessLogicTests(unittest.TestCase):
 
         self.assertFalse(result.qualified)
         self.assertEqual(result.reason, "province_not_eligible")
+
+    def test_qualification_derives_external_referral_province(self) -> None:
+        submission = normalize_business_input(
+            {
+                "full_name": "Ana Gomez",
+                "email": "ana@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "27-12345678-5",
+                "province": "Rio Negro",
+                "employment_status": "Policia",
+                "payment_bank": "Banco Patagonia S.A.",
+                "lead_source": "Instagram",
+            }
+        )
+
+        result = evaluate_qualification(submission)
+
+        self.assertFalse(result.qualified)
+        self.assertEqual(result.reason, "external_referral")
+
+    def test_qualification_rejects_cordoba_policia_without_bancor(self) -> None:
+        submission = normalize_business_input(
+            {
+                "full_name": "Luis Diaz",
+                "email": "luis@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "20-87654321-9",
+                "province": "Cordoba",
+                "employment_status": "Policia",
+                "payment_bank": "Banco de la Nacion Argentina",
+                "lead_source": "Google",
+            }
+        )
+
+        result = evaluate_qualification(submission)
+
+        self.assertFalse(result.qualified)
+        self.assertEqual(result.reason, "payment_bank_not_eligible")
+
+    def test_qualification_accepts_cordoba_docente_with_bancor(self) -> None:
+        submission = normalize_business_input(
+            {
+                "full_name": "Maria Lopez",
+                "email": "maria@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "27-12345678-5",
+                "province": "Cordoba",
+                "employment_status": "Docente",
+                "payment_bank": "Banco de la Provincia de Cordoba S.A.",
+                "lead_source": "Google",
+            }
+        )
+
+        result = evaluate_qualification(submission)
+
+        self.assertTrue(result.qualified)
+        self.assertEqual(result.reason, "qualified")
+
+    def test_qualification_rejects_la_rioja_pensionado(self) -> None:
+        submission = normalize_business_input(
+            {
+                "full_name": "Pedro Gomez",
+                "email": "pedro@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "20-87654321-9",
+                "province": "La Rioja",
+                "employment_status": "Pensionado",
+                "payment_bank": "Banco Rioja Sociedad Anonima Unipersonal",
+                "lead_source": "Facebook",
+            }
+        )
+
+        result = evaluate_qualification(submission)
+
+        self.assertFalse(result.qualified)
+        self.assertEqual(result.reason, "employment_status_not_eligible")
 
     def test_process_submission_orchestrates_contact_lead_and_status(self) -> None:
         client = FakeBitrixClient()
@@ -353,13 +550,120 @@ class BusinessLogicTests(unittest.TestCase):
         self.assertEqual(result["lead_status"], "UC_1P8I07")
         self.assertEqual(result["reason"], "province_not_eligible")
 
-        self.assertEqual(client.calls[-4][0], "crm.lead.get")
-        self.assertEqual(client.calls[-3][0], "crm.lead.update")
+        self.assertEqual(client.calls[-3][0], "crm.lead.get")
         self.assertEqual(client.calls[-2][0], "crm.lead.fields")
         last_method, last_payload = client.calls[-1]
         self.assertEqual(last_method, "crm.lead.update")
         self.assertEqual(last_payload["fields"]["STATUS_ID"], "UC_1P8I07")
         self.assertEqual(last_payload["fields"]["UF_CRM_REJECTION_REASON"], "3933")
+
+    def test_prequalify_submission_returns_fast_result_without_bitrix(self) -> None:
+        bcra_client = FakeBcraClient(
+            {
+                "20876543219": self.make_bcra_result(
+                    identification="20876543219",
+                    status_field_value="OK",
+                    should_reject=False,
+                )
+            }
+        )
+
+        result = prequalify_submission(
+            {
+                "full_name": "Luis Diaz",
+                "email": "luis@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "20-87654321-9",
+                "province": "Cordoba",
+                "employment_status": "Jubilado Provincial",
+                "payment_bank": "Banco Santander Rio S.A.",
+                "lead_source": "Facebook",
+                "utm_source": "google",
+            },
+            bcra_client=bcra_client,
+            logger=SilentLogger(),
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["qualified"])
+        self.assertEqual(result["action"], "qualified")
+        self.assertEqual(result["reason"], "qualified")
+        self.assertIsNone(result["contact_id"])
+        self.assertIsNone(result["lead_id"])
+        self.assertEqual(bcra_client.calls, ["20876543219"])
+        self.assertEqual(result["payload"]["full_name"], "Luis Diaz")
+        self.assertEqual(result["payload"]["utm_source"], "google")
+        self.assertEqual(result["bcra_result"]["identification"], "20876543219")
+
+    def test_prequalify_submission_skips_bcra_for_la_rioja(self) -> None:
+        bcra_client = FakeBcraClient({})
+
+        result = prequalify_submission(
+            {
+                "full_name": "Luis Diaz",
+                "email": "luis@example.com",
+                "whatsapp": "3511234567",
+                "cuil": "20-87654321-9",
+                "province": "La Rioja",
+                "employment_status": "Policia",
+                "payment_bank": "Banco Rioja Sociedad Anonima Unipersonal",
+                "lead_source": "Facebook",
+            },
+            bcra_client=bcra_client,
+            logger=SilentLogger(),
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["qualified"])
+        self.assertEqual(result["bcra_result"]["outcome"], "skipped")
+        self.assertEqual(bcra_client.calls, [])
+
+    def test_persist_submission_uses_prequalified_result_without_reconsulting_bcra(self) -> None:
+        client = FakeBitrixClient()
+        bcra_result = self.make_bcra_result(
+            identification="20876543219",
+            status_field_value="NEGATIVO",
+            should_reject=True,
+        )
+
+        result = persist_submission(
+            {
+                "full_name": "Luis Diaz",
+                "email": "luis@example.com",
+                "whatsapp": "+5493511234567",
+                "cuil": "20-87654321-9",
+                "province": "Cordoba",
+                "employment_status": "Jubilado Provincial",
+                "payment_bank": "Banco Santander Rio S.A.",
+                "lead_source": "Facebook",
+            },
+            qualified=False,
+            reason="bcra_negative_situation",
+            message="El snapshot actual del BCRA supera el umbral permitido de situaciones 5.",
+            rejection_label="SIT NEG BCRA",
+            bcra_result_payload=serialize_bcra_result(bcra_result),
+            env=self.env,
+            bitrix_client=client,
+            logger=SilentLogger(),
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["qualified"])
+        self.assertEqual(result["lead_status"], "UC_1P8I07")
+        self.assertEqual(
+            [method for method, _ in client.calls],
+            [
+                "crm.contact.list",
+                "crm.contact.add",
+                "crm.lead.fields",
+                "crm.lead.add",
+                "crm.lead.update",
+                "crm.lead.fields",
+                "crm.lead.update",
+            ],
+        )
+        self.assertIn("Estado: NEGATIVO", client.leads[202]["UF_CRM_BCRA_STATUS"])
+        self.assertEqual(client.calls[-1][1]["fields"]["UF_CRM_REJECTION_REASON"], "3935")
 
     def test_ingest_submission_sets_processing_policy_to_skip(self) -> None:
         client = FakeBitrixClient()

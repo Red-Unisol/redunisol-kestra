@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BlogController;
 use App\Models\Page;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -57,6 +58,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/test', function () {
     return Inertia::render('test');
 })->name('test');
+
+Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('/blog/{slug}', [BlogController::class, 'show'])->name('blog.show');
+Route::get('/category/{slug}', [BlogController::class, 'category'])->name('blog.category');
+
+Route::get('/finalizar', [\App\Http\Controllers\FinalizarController::class, 'show'])->name('finalizar');
 
 require __DIR__.'/settings.php';
 

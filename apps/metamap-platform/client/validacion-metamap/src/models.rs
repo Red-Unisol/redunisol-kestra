@@ -6,6 +6,11 @@ pub struct ValidationSearchResponse {
     pub items: Vec<ValidationSnapshot>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct ValidationReviewResponse {
+    pub validation: ValidationSnapshot,
+}
+
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ValidationSnapshot {
     #[serde(default)]
@@ -41,6 +46,12 @@ pub struct ValidationSnapshot {
     #[serde(default)]
     pub completed_at: Option<String>,
     #[serde(default)]
+    pub reviewed_at: Option<String>,
+    #[serde(default)]
+    pub reviewed_by_client_id: Option<String>,
+    #[serde(default)]
+    pub reviewed_by_display_name: Option<String>,
+    #[serde(default)]
     pub event_count: u64,
 }
 
@@ -67,12 +78,17 @@ pub struct MonitorItem {
     pub event_at: Option<DateTime<Local>>,
     pub event_label: String,
     pub core_enriched: bool,
+    pub reviewed_at: Option<DateTime<Local>>,
+    pub reviewed_label: Option<String>,
+    pub reviewed_by_display_name: Option<String>,
+    pub reviewed_by_client_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct SnapshotSummary {
     pub total: usize,
     pub core_enriched: usize,
+    pub reviewed: usize,
 }
 
 impl ValidationSnapshot {
@@ -95,8 +111,52 @@ impl ValidationSnapshot {
             .map(str::to_owned)
     }
 
+    pub fn verification_id_trimmed(&self) -> Option<String> {
+        self.verification_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }
+
+    pub fn resource_url_trimmed(&self) -> Option<String> {
+        self.resource_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }
+
+    pub fn applicant_name_trimmed(&self) -> Option<String> {
+        self.applicant_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }
+
     pub fn document_number_trimmed(&self) -> Option<String> {
         self.document_number
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }
+
+    pub fn reviewed_at(&self) -> Option<DateTime<FixedOffset>> {
+        parse_timestamp(self.reviewed_at.as_deref())
+    }
+
+    pub fn reviewed_by_client_id_trimmed(&self) -> Option<String> {
+        self.reviewed_by_client_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    }
+
+    pub fn reviewed_by_display_name_trimmed(&self) -> Option<String> {
+        self.reviewed_by_display_name
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -131,6 +191,21 @@ impl ValidationSnapshot {
             .into_iter()
             .flatten(),
         )
+    }
+}
+
+impl MonitorItem {
+    pub fn is_reviewed(&self) -> bool {
+        self.reviewed_at.is_some()
+    }
+
+    pub fn apply_review_state(&mut self, validation: &ValidationSnapshot) {
+        self.reviewed_at = validation.reviewed_at().map(|value| value.with_timezone(&Local));
+        self.reviewed_label = self
+            .reviewed_at
+            .map(|value| format!("Revisada {}", value.format("%d/%m %H:%M:%S")));
+        self.reviewed_by_client_id = validation.reviewed_by_client_id_trimmed();
+        self.reviewed_by_display_name = validation.reviewed_by_display_name_trimmed();
     }
 }
 

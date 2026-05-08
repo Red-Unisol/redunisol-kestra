@@ -6,6 +6,7 @@ pub mod app;
 pub mod config;
 pub mod core_client;
 pub mod logging;
+pub mod media_downloader;
 pub mod models;
 pub mod notifications;
 pub mod server_client;

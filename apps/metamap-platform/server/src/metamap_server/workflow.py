@@ -155,6 +155,9 @@ class ValidationRecord:
     last_received_at: str = field(default_factory=_utc_now)
     latest_event_timestamp: str | None = None
     completed_at: str | None = None
+    reviewed_at: str | None = None
+    reviewed_by_client_id: str | None = None
+    reviewed_by_display_name: str | None = None
     event_count: int = 1
 
     def to_dict(self, *, include_payload: bool = True) -> dict:
@@ -178,6 +181,9 @@ class ValidationRecord:
             "last_received_at": self.last_received_at,
             "latest_event_timestamp": self.latest_event_timestamp,
             "completed_at": self.completed_at,
+            "reviewed_at": self.reviewed_at,
+            "reviewed_by_client_id": self.reviewed_by_client_id,
+            "reviewed_by_display_name": self.reviewed_by_display_name,
             "event_count": self.event_count,
         }
         if include_payload:

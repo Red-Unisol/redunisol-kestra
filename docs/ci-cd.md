@@ -91,6 +91,16 @@ Importante:
 - por `push` sigue corriendo solo desde `main`
 - manualmente puede correrse desde `main` o `dev`, pero sigue aplicando sobre la misma instancia compartida en `/opt/kestra`
 
+### `publish-analisis-credito-consulta-cuad-image.yml`
+
+Publica la imagen Docker usada por `consulta_cuad`.
+
+Comportamiento:
+
+- construye una imagen basada en Playwright
+- publica tags `sha-<commit>` y `latest` en GHCR
+- corre cuando cambia el Dockerfile de `consulta-cuad`, el flow asociado o el propio workflow
+
 ### `deploy-herramientas-dev.yml` y `deploy-herramientas-prod.yml`
 
 Despliegan `web/herramientas/` como aplicacion stateless y Git-managed.

@@ -69,11 +69,14 @@ function Resolve-FirstExistingPath {
     return $null
 }
 
-$resolvedEnvPath = Resolve-FirstExistingPath -Candidates @(
-    $EnvPath,
-    $packageInputEnvPath,
-    $defaultEnvPath
-)
+$envCandidates = @()
+if (-not [string]::IsNullOrWhiteSpace($EnvPath)) {
+    $envCandidates += $EnvPath
+}
+$envCandidates += $packageInputEnvPath
+$envCandidates += $defaultEnvPath
+
+$resolvedEnvPath = Resolve-FirstExistingPath -Candidates $envCandidates
 
 Assert-FileExists -Path $cargoTomlPath -Label "Cargo.toml"
 Assert-FileExists -Path $readmePath -Label "README.md"

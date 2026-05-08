@@ -30,6 +30,8 @@ Copiar `.env.example` a `.env` y completar al menos:
 - `ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL`
 - `ANALISIS_CREDITO_CONSULTA_CAJA`
 - `ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL`
+- `ANALISIS_CREDITO_CONSULTA_EMPLEADOR_WEBHOOK_URL`
+- `ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_URL`
 - `ANALISIS_CREDITO_TIMEOUT_SECONDS`
 
 Cada una de esas URLs debe apuntar al webhook completo expuesto por Kestra para el flow correspondiente. Esas URLs quedan solo del lado servidor y no se exponen al navegador.

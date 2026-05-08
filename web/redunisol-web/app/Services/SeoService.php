@@ -16,10 +16,10 @@ class SeoService
             return $this->truncate($model->meta_title, $maxLength);
         }
 
-        $appName = config('app.name', 'RedúniSol');
+        $appName = config('app.name', 'Red Unisol');
         $title = $this->truncate($model->title, $maxLength - strlen($appName) - 3);
 
-        return "{$title} | {$appName}";
+        return "{$title}";
     }
 
     /**
@@ -101,7 +101,7 @@ class SeoService
             'url' => $canonical,
             'author' => [
                 '@type' => 'Organization',
-                'name' => config('app.name', 'RedúniSol'),
+                'name' => config('app.name', 'Red Unisol'),
             ],
         ];
     }
