@@ -69,7 +69,7 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
         with patch.dict(os.environ, self.env, clear=False):
             variables = service.get_template_variables(51765, deal, contact_data)
 
-        self.assertEqual(variables, ["CONTRERA GISELLA PAULA", "$125.246"])
+        self.assertEqual(variables, ["CONTRERA GISELLA PAULA", "$125.245,57"])
 
     def test_extract_contact_name_does_not_fallback_to_deal_title(self) -> None:
         deal = {"TITLE": "CONTRERA G."}
@@ -84,6 +84,27 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
         }
 
         self.assertEqual(service.extract_contact_name(contact_data, deal), "CONTRERA")
+
+    def test_format_amount_preserves_dot_decimal_values(self) -> None:
+        self.assertEqual(service.format_amount("323067.93|ARS"), "$323.067,93")
+
+    def test_format_amount_preserves_comma_decimal_values(self) -> None:
+        self.assertEqual(service.format_amount("1.234.567,89|ARS"), "$1.234.567,89")
+
+    def test_get_template_variables_uses_promised_amount_field(self) -> None:
+        deal = {
+            "TITLE": "RIPOLL FLAVIA JESSICA",
+            "UF_CRM_1724429048": "323067.93|ARS",
+            "OPPORTUNITY": "304064.00",
+        }
+        contact_data = {
+            "NAME": "FLAVIA JESSICA",
+            "LAST_NAME": "RIPOLL",
+        }
+        with patch.dict(os.environ, self.env, clear=False):
+            variables = service.get_template_variables(51765, deal, contact_data)
+
+        self.assertEqual(variables, ["RIPOLL FLAVIA JESSICA", "$323.067,93"])
 
     def test_build_stage_plan_creates_three_dependent_actions(self) -> None:
         stage_cfg = {
