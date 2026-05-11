@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -447,18 +448,65 @@ def parse_amount(value: Any) -> str:
     return str(value).split("|", 1)[0].strip()
 
 
+def _normalize_amount_number(raw: str) -> str:
+    cleaned = re.sub(r"[^\d,.\-]", "", raw).strip()
+    if not cleaned:
+        raise ValueError("Amount is empty.")
+
+    comma_count = cleaned.count(",")
+    dot_count = cleaned.count(".")
+
+    if comma_count and dot_count:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            return cleaned.replace(".", "").replace(",", ".")
+        return cleaned.replace(",", "")
+
+    if comma_count > 1:
+        last_segment = cleaned.rsplit(",", 1)[1]
+        if len(last_segment) in {1, 2}:
+            return cleaned[: -(len(last_segment) + 1)].replace(",", "") + "." + last_segment
+        return cleaned.replace(",", "")
+
+    if dot_count > 1:
+        last_segment = cleaned.rsplit(".", 1)[1]
+        if len(last_segment) in {1, 2}:
+            return cleaned[: -(len(last_segment) + 1)].replace(".", "") + "." + last_segment
+        return cleaned.replace(".", "")
+
+    if comma_count == 1:
+        integer_part, fractional_part = cleaned.split(",", 1)
+        if len(fractional_part) in {1, 2}:
+            return integer_part + "." + fractional_part
+        return cleaned.replace(",", "")
+
+    if dot_count == 1:
+        integer_part, fractional_part = cleaned.split(".", 1)
+        if len(fractional_part) in {1, 2}:
+            return integer_part + "." + fractional_part
+        return cleaned.replace(".", "")
+
+    return cleaned
+
+
 def format_amount(value: Any) -> str | None:
     raw = parse_amount(value)
     if raw == "":
         return None
 
-    normalized = raw.replace(".", "").replace(",", ".")
     try:
-        amount = float(normalized)
-    except ValueError:
+        amount = Decimal(_normalize_amount_number(raw))
+    except (InvalidOperation, ValueError):
         return raw
 
-    return "$" + f"{amount:,.0f}".replace(",", ".")
+    amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sign = "-" if amount < 0 else ""
+    absolute_amount = abs(amount)
+    integer_part = int(absolute_amount)
+    fractional_part = int((absolute_amount - Decimal(integer_part)) * 100)
+    formatted_integer = f"{integer_part:,}".replace(",", ".")
+    if fractional_part:
+        return f"{sign}${formatted_integer},{fractional_part:02d}"
+    return f"{sign}${formatted_integer}"
 
 
 def extract_contact_name(contact_data: Dict[str, Any] | None, deal: Dict[str, Any]) -> str:

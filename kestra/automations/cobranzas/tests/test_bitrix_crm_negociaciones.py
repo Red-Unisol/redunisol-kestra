@@ -56,6 +56,23 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.isoformat(), "2026-04-25T00:00:00-03:00")
 
+    def test_format_amount_preserves_dot_decimal_values(self) -> None:
+        self.assertEqual(service.format_amount("323067.93|ARS"), "$323.067,93")
+
+    def test_format_amount_preserves_comma_decimal_values(self) -> None:
+        self.assertEqual(service.format_amount("1.234.567,89|ARS"), "$1.234.567,89")
+
+    def test_get_template_variables_uses_promised_amount_field(self) -> None:
+        deal = {
+            "TITLE": "RIPOLL FLAVIA JESSICA",
+            "UF_CRM_1724429048": "323067.93|ARS",
+            "OPPORTUNITY": "304064.00",
+        }
+        with patch.dict(os.environ, self.env, clear=False):
+            variables = service.get_template_variables(51765, deal, None)
+
+        self.assertEqual(variables, ["RIPOLL FLAVIA JESSICA", "$323.067,93"])
+
     def test_build_stage_plan_creates_three_dependent_actions(self) -> None:
         stage_cfg = {
             "name": "RECORDATORIO DE PROMESA",
