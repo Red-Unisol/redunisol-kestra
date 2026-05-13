@@ -30,6 +30,7 @@ from .service import (
     normalize_cuit,
     normalize_name,
 )
+from .sqlite_cache import write_cache_entries
 
 
 DEFAULT_MAX_PER_RUN = 5
@@ -100,6 +101,14 @@ def run_warmup() -> dict[str, Any]:
             register_cache_entry(cache_entries, str(output.get("name_cache_key") or ""), str(output.get("cache_value_json") or ""))
 
         mark_daily_index(daily_index, solicitud, output)
+
+    sqlite_path = os.getenv("CREDIX_CACHE_SQLITE_PATH", "").strip()
+    if sqlite_path and cache_entries:
+        try:
+            write_cache_entries(sqlite_path, cache_entries)
+        except Exception as exc:
+            error_count += 1
+            errors.append(f"sqlite_cache:{type(exc).__name__}:{str(exc)[:160]}")
 
     output_payload = build_success_output(
         daily_index=daily_index,

@@ -2,6 +2,8 @@ services:
   herramientas:
     image: ${APP_IMAGE}
     pull_policy: always
+    depends_on:
+      - credixsa-cache-api
     ports:
       - "${APP_BIND}"
     environment:
@@ -12,9 +14,21 @@ services:
       APP_KEY: ${APP_KEY}
       ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL: ${ANALISIS_CREDITO_RENOVACION_WEBHOOK_URL}
       ANALISIS_CREDITO_CONSULTA_CAJA: ${ANALISIS_CREDITO_CONSULTA_CAJA}
+      ANALISIS_CREDITO_QUIEBRA_CREDIX_CACHE_URL: http://credixsa-cache-api:8000/credixsa/cache
       ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL: ${ANALISIS_CREDITO_QUIEBRA_CREDIX_WEBHOOK_URL}
       ANALISIS_CREDITO_CONSULTA_EMPLEADOR_WEBHOOK_URL: ${ANALISIS_CREDITO_CONSULTA_EMPLEADOR_WEBHOOK_URL}
       ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_URL: ${ANALISIS_CREDITO_CONSULTA_CUAD_WEBHOOK_URL}
       ANALISIS_CREDITO_TIMEOUT_SECONDS: ${ANALISIS_CREDITO_TIMEOUT_SECONDS}
+      ANALISIS_CREDITO_CACHE_TIMEOUT_SECONDS: 3
       LOG_CHANNEL: ${LOG_CHANNEL}
+    restart: unless-stopped
+
+  credixsa-cache-api:
+    image: ${CREDIXSA_CACHE_API_IMAGE}
+    pull_policy: always
+    environment:
+      CREDIXSA_CACHE_DB_PATH: /data/credixsa-cache/credixsa.sqlite
+      CREDIXSA_CACHE_MAX_AGE_DAYS: 7
+    volumes:
+      - /opt/kestra/data/credixsa-cache:/data/credixsa-cache:ro
     restart: unless-stopped

@@ -35,6 +35,8 @@ tasks:
         - consulta_quiebra_credix/**
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - /opt/kestra/data/credixsa-cache:/data/credixsa-cache
     containerImage: mcr.microsoft.com/playwright/python:v1.58.0-noble
     beforeCommands:
       - pip install kestra requests urllib3 playwright==1.58.0 > /dev/null
@@ -49,6 +51,7 @@ tasks:
       CREDIX_WARMUP_MAX_PER_RUN: "{{ envs.credixsa_warmup_max_per_run ?? '5' }}"
       CREDIX_WARMUP_CORE_MAX_ROWS: "{{ envs.credixsa_warmup_core_max_rows ?? '1000' }}"
       CREDIX_WARMUP_RETRY_ATTEMPTS: "{{ envs.credixsa_warmup_retry_attempts ?? '2' }}"
+      CREDIX_CACHE_SQLITE_PATH: "/data/credixsa-cache/credixsa.sqlite"
       VIMARX_EVAL_BASE_URL: "{{ secret('DEVEXPRESS_EVALUATE_API_BASE_URL') }}"
       VIMARX_TIMEOUT_SECONDS: "{{ envs.vimarx_timeout_seconds }}"
       VIMARX_VERIFY_TLS: "{{ envs.vimarx_verify_tls }}"

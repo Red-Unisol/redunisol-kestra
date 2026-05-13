@@ -25,6 +25,7 @@ jobs:
     environment: vps-infra
     env:
       IMAGE_NAME: ghcr.io/red-unisol/redunisol-herramientas
+      CREDIXSA_CACHE_API_IMAGE_NAME: ghcr.io/red-unisol/credixsa-cache-api
       IMAGE_TAG: prod-${{ github.sha }}
       SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
       SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
@@ -76,6 +77,16 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_NAME }}:prod-latest
 
+      - name: Build and push CredixSA cache API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/credixsa-cache-api
+          file: apps/credixsa-cache-api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.CREDIXSA_CACHE_API_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.CREDIXSA_CACHE_API_IMAGE_NAME }}:prod-latest
+
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -105,6 +116,7 @@ jobs:
           set -euo pipefail
           cp web/herramientas/deploy/herramientas.prod.env "$RUNNER_TEMP/herramientas.env"
           printf 'APP_IMAGE=%s\n' "${IMAGE_NAME}:${IMAGE_TAG}" >> "$RUNNER_TEMP/herramientas.env"
+          printf 'CREDIXSA_CACHE_API_IMAGE=%s\n' "${CREDIXSA_CACHE_API_IMAGE_NAME}:${IMAGE_TAG}" >> "$RUNNER_TEMP/herramientas.env"
           set -a
           . "$RUNNER_TEMP/herramientas.env"
           set +a

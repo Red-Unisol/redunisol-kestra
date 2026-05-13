@@ -165,6 +165,22 @@ class HerramientasController extends Controller
             'nombre' => trim((string) ($validated['nombre'] ?? '')),
         ], fn ($value) => $value !== '');
 
+        $cacheUrl = (string) config('tools.proxy.consulta_quiebra_credix_cache_url', '');
+        if ($cacheUrl !== '') {
+            try {
+                $cacheResponse = Http::acceptJson()
+                    ->asJson()
+                    ->timeout((int) config('tools.proxy.cache_timeout_seconds', 3))
+                    ->post($cacheUrl, $payload);
+
+                if ($cacheResponse->successful()) {
+                    return response()->json($cacheResponse->json());
+                }
+            } catch (Throwable) {
+                // Cache misses and cache service outages fall back to the full Kestra flow.
+            }
+        }
+
         try {
             $response = Http::acceptJson()
                 ->asJson()

@@ -83,6 +83,84 @@ class ConsultaQuiebraCredixTest extends TestCase
         });
     }
 
+    public function test_it_returns_credix_cache_hit_without_calling_kestra(): void
+    {
+        config()->set('tools.proxy.consulta_quiebra_credix_cache_url', 'http://credixsa-cache-api:8000/credixsa/cache');
+        config()->set('tools.proxy.consulta_quiebra_credix_url', 'https://kestra.example.test/webhook');
+
+        Http::fake([
+            'http://credixsa-cache-api:8000/credixsa/cache' => Http::response([
+                'ok' => true,
+                'status' => 'single',
+                'cuit' => '20123456783',
+                'nombre' => 'Juan Perez',
+                'rows_json' => '[]',
+                'data_json' => '[{"title":"Datos Filiatorios"}]',
+                'response_json' => '{"status":"single","data":[{"title":"Datos Filiatorios"}]}',
+                'error' => '',
+                'cache_hit' => true,
+            ], 200),
+            'https://kestra.example.test/webhook' => Http::response([
+                'ok' => false,
+                'error' => 'should_not_be_called',
+            ], 500),
+        ]);
+
+        $response = $this->postJson('/api/tools/consulta-quiebra-credix', [
+            'cuit' => '20-12345678-3',
+            'nombre' => '',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('cache_hit', true)
+            ->assertJsonPath('status', 'single');
+
+        Http::assertNotSent(function ($request): bool {
+            return $request->url() === 'https://kestra.example.test/webhook';
+        });
+    }
+
+    public function test_it_falls_back_to_kestra_when_credix_cache_misses(): void
+    {
+        config()->set('tools.proxy.consulta_quiebra_credix_cache_url', 'http://credixsa-cache-api:8000/credixsa/cache');
+        config()->set('tools.proxy.consulta_quiebra_credix_url', 'https://kestra.example.test/webhook');
+
+        Http::fake([
+            'http://credixsa-cache-api:8000/credixsa/cache' => Http::response([
+                'detail' => [
+                    'status' => 'cache_miss',
+                ],
+            ], 404),
+            'https://kestra.example.test/webhook' => Http::response([
+                'ok' => true,
+                'status' => 'none',
+                'cuit' => '20123456783',
+                'nombre' => '',
+                'rows_json' => '[]',
+                'data_json' => '[]',
+                'response_json' => '{"status":"none","rows":[]}',
+                'error' => '',
+            ], 200),
+        ]);
+
+        $response = $this->postJson('/api/tools/consulta-quiebra-credix', [
+            'cuit' => '20-12345678-3',
+            'nombre' => '',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('status', 'none');
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'http://credixsa-cache-api:8000/credixsa/cache';
+        });
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://kestra.example.test/webhook';
+        });
+    }
+
     public function test_it_omits_blank_fields_before_proxying(): void
     {
         config()->set('tools.proxy.consulta_quiebra_credix_url', 'https://kestra.example.test/webhook');

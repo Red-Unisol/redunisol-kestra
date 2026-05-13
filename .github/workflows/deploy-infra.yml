@@ -110,6 +110,7 @@ jobs:
           install -d -m 755 "$target_dir"
           install -d -m 755 "$target_dir/data/postgres"
           install -d -m 755 "$target_dir/data/storage"
+          install -d -m 755 "$target_dir/data/credixsa-cache"
           install -d -m 755 "$target_dir/tmp"
 
           docker compose \

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+import json
+import sqlite3
 
 FILES_ROOT = (
     Path(__file__).resolve().parent.parent / "files"
@@ -29,6 +32,7 @@ from consulta_quiebra_credix.service import (  # noqa: E402
     normalize_name,
     parse_search_request,
 )
+from consulta_quiebra_credix.sqlite_cache import write_cache_entries  # noqa: E402
 
 
 class ConsultaQuiebraCredixTests(unittest.TestCase):
@@ -198,6 +202,40 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         self.assertIsNotNone(cached)
         self.assertTrue(cached["cache_hit"])
         self.assertEqual(cached["cache_source"], "cuil")
+
+    def test_write_cache_entries_persists_sqlite_lookup_rows(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20123456783", nombre=""),
+            [{"title": "Datos Filiatorios", "rows": [["Cuil", "20-12345678-3"]]}],
+            cuit="20123456783",
+            nombre="Juan Perez",
+        )
+        cache_entry = build_cache_entry(result)
+        self.assertIsNotNone(cache_entry)
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
+            db_path = str(Path(tmp_dir) / "credixsa.sqlite")
+            written = write_cache_entries(
+                db_path,
+                [
+                    {
+                        "key": "credixsa.cuil.20123456783",
+                        "value": json.dumps(cache_entry, ensure_ascii=True),
+                    }
+                ],
+            )
+
+            self.assertEqual(written, 1)
+            with sqlite3.connect(db_path) as connection:
+                row = connection.execute(
+                    "SELECT cuit, nombre, payload_json FROM credixsa_cache WHERE lookup_key = ?",
+                    ("credixsa.cuil.20123456783",),
+                ).fetchone()
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], "20123456783")
+        self.assertEqual(row[1], "Juan Perez")
+        self.assertIn('"version"', row[2])
 
     def test_is_detail_summary_page_detects_credix_detail_view(self) -> None:
         class BodyLocator:

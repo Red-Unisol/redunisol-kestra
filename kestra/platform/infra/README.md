@@ -27,7 +27,7 @@ Copiar `.env.example` a `.env` y completar:
 ## Levantar el stack
 
 ```bash
-mkdir -p /opt/kestra/data/postgres /opt/kestra/data/storage /opt/kestra/tmp
+mkdir -p /opt/kestra/data/postgres /opt/kestra/data/storage /opt/kestra/data/credixsa-cache /opt/kestra/tmp
 cd /opt/kestra
 docker compose pull
 docker compose up -d

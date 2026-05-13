@@ -63,6 +63,8 @@ tasks:
         - consulta_quiebra_credix/**
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - /opt/kestra/data/credixsa-cache:/data/credixsa-cache
     containerImage: mcr.microsoft.com/playwright/python:v1.58.0-noble
     beforeCommands:
       - pip install kestra playwright==1.58.0 > /dev/null
@@ -77,6 +79,7 @@ tasks:
       CREDIX_CACHE_BY_CUIL_JSON: "{{ (outputs.leer_cache_cuil.value ?? null) | json }}"
       CREDIX_CACHE_BY_NAME_JSON: "{{ (outputs.leer_cache_nombre.value ?? null) | json }}"
       CREDIX_CACHE_MAX_AGE_DAYS: "7"
+      CREDIX_CACHE_SQLITE_PATH: "/data/credixsa-cache/credixsa.sqlite"
     commands:
       - python -m consulta_quiebra_credix.kestra_webhook_entrypoint
 
