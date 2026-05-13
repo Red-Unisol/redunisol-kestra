@@ -28,7 +28,7 @@ PROCESSING_TEXT = "Procesando"
 CACHE_VERSION = 1
 CACHE_TTL = "P8D"
 CACHE_MAX_AGE_DAYS = 7
-CACHE_DUMMY_KEY = "credixsa:cache:lookup:none"
+CACHE_DUMMY_KEY = "credixsa.cache.lookup.none"
 
 
 @dataclass(frozen=True)
@@ -252,7 +252,7 @@ def cache_key_for_cuil(value: Any) -> str:
     digits = normalize_cuit(value)
     if len(digits) != 11:
         return ""
-    return f"credixsa:cuil:{digits}"
+    return f"credixsa.cuil.{digits}"
 
 
 def normalize_name_for_cache(value: Any) -> str:
@@ -271,7 +271,7 @@ def cache_key_for_name(value: Any) -> str:
     if not normalized:
         return ""
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
-    return f"credixsa:name:{digest}"
+    return f"credixsa.name.{digest}"
 
 
 def build_cache_lookup(payload: Any) -> dict[str, Any]:

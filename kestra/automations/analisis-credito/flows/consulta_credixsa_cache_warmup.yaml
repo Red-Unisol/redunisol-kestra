@@ -24,7 +24,7 @@ labels:
 tasks:
   - id: leer_indice_diario
     type: io.kestra.plugin.core.kv.Get
-    key: credixsa:daily:index
+    key: credixsa.daily.index
     errorOnMissing: false
 
   - id: precalentar_cache
@@ -58,7 +58,7 @@ tasks:
 
   - id: guardar_indice_diario
     type: io.kestra.plugin.core.kv.Set
-    key: credixsa:daily:index
+    key: credixsa.daily.index
     value: "{{ outputs.precalentar_cache.vars.daily_index_json }}"
     kvType: JSON
     overwrite: true

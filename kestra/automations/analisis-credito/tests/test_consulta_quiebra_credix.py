@@ -138,9 +138,9 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
     def test_cache_lookup_builds_cuil_and_name_keys(self) -> None:
         lookup = build_cache_lookup({"cuit": "20-12345678-3", "nombre": "  José  Pérez "})
 
-        self.assertEqual(lookup["cuil_cache_key"], "credixsa:cuil:20123456783")
+        self.assertEqual(lookup["cuil_cache_key"], "credixsa.cuil.20123456783")
         self.assertEqual(lookup["name_cache_key"], cache_key_for_name("Jose Perez"))
-        self.assertNotEqual(lookup["name_cache_lookup_key"], "credixsa:cache:lookup:none")
+        self.assertNotEqual(lookup["name_cache_lookup_key"], "credixsa.cache.lookup.none")
 
     def test_cache_entry_round_trips_when_fresh(self) -> None:
         result = build_single_result(
@@ -160,7 +160,7 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
 
     def test_cache_key_for_name_is_accent_insensitive(self) -> None:
         self.assertEqual(cache_key_for_name("José   Pérez"), cache_key_for_name("jose perez"))
-        self.assertEqual(cache_key_for_cuil("20-12345678-3"), "credixsa:cuil:20123456783")
+        self.assertEqual(cache_key_for_cuil("20-12345678-3"), "credixsa.cuil.20123456783")
 
     def test_is_detail_summary_page_detects_credix_detail_view(self) -> None:
         class BodyLocator:

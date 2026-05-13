@@ -229,8 +229,8 @@ Cuando hay un unico resultado, el flow entra al detalle, ejecuta `Actualizar Tod
 
 Antes de navegar, calcula claves de cache por CUIL y por nombre normalizado. Si existe una entrada de menos de 7 dias, devuelve esa respuesta con `cache_hit=true` sin consultar CredixSA. Cuando consulta CredixSA y obtiene un resultado `single`, guarda el mismo informe por:
 
-- `credixsa:cuil:<cuil>`
-- `credixsa:name:<sha256_nombre_normalizado>`
+- `credixsa.cuil.<cuil>`
+- `credixsa.name.<sha256_nombre_normalizado>`
 
 ### Entrada
 
@@ -293,7 +293,7 @@ Precalienta cache de CredixSA para solicitudes del dia tomadas desde el core fin
 
 Corre cada minuto con concurrencia `1`. En cada corrida:
 
-1. lee el indice diario `credixsa:daily:index`
+1. lee el indice diario `credixsa.daily.index`
 2. consulta solicitudes de hoy en `PreSolicitud.Module.Solicitud`
 3. completa CUIL desde `F.Module.SocioMutual` si la solicitud trae solo DNI
 4. omite solicitudes ya procesadas/cacheadas hoy
