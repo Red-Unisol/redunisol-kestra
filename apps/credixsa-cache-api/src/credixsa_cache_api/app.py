@@ -358,7 +358,7 @@ def _normalized_label(value: Any) -> str:
     normalized = normalized.replace("(*)", "").replace("*", "")
     normalized = normalized.replace("fuente:", "fuente ")
     normalized = re.sub(r"\s+", " ", normalized)
-    normalized = re.sub(r"[^a-z0-9:/.\\- ]+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9:./\\ -]+", " ", normalized)
     return normalize_name(normalized)
 
 
