@@ -11,10 +11,15 @@ if str(SRC_DIR) not in sys.path:
 from exportador_bancor.core import (
     Attempt,
     AttemptSummary,
+    ApiRow,
+    CLUB_MUTUAL_LINEA_SUPERIOR,
     ConsolidatedPlanilla,
+    DEFAULT_LINEA_SUPERIOR,
+    build_filter_for_date,
     classify_planillas,
     compute_shots,
     determine_planilla_outcome,
+    filter_api_rows_for_mode,
     sort_api_rows,
 )
 
@@ -232,6 +237,43 @@ class ComputeShotsTests(unittest.TestCase):
         self.assertEqual(len(larger_shots), 3)
         self.assertAlmostEqual(float(sum(larger_shots)), 200000.0, places=2)
 
+    def test_club_mutual_new_loan_has_no_upper_shot_cap(self) -> None:
+        planilla = self.factory.build(
+            loan_status="new",
+            attempts=AttemptSummary.empty(),
+            outstanding="160300.00",
+            installment="160300.00",
+        )
+        shots = compute_shots(planilla, club_mutual_mode=True)
+        self.assertEqual(shots, [Decimal("160300.00")])
+
+    def test_club_mutual_enforces_minimum_shot_amount(self) -> None:
+        attempts = AttemptSummary.empty()
+        attempts.register(Attempt(amount=Decimal("10000.00"), entered=True, response="COB"))
+        attempts.register(Attempt(amount=Decimal("8000.00"), entered=False, response="R10"))
+        planilla = self.factory.build(
+            loan_status="old",
+            attempts=attempts,
+            outstanding="120000.00",
+            installment="40000.00",
+        )
+        shots = compute_shots(planilla, club_mutual_mode=True)
+        self.assertEqual(shots, [Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("16000.00")])
+        self.assertTrue(all(value >= Decimal("11000.00") for value in shots))
+        self.assertEqual(sum(shots), Decimal("60000.00"))
+
+    def test_club_mutual_preserves_large_historical_shots(self) -> None:
+        attempts = AttemptSummary.empty()
+        attempts.register(Attempt(amount=Decimal("90000.00"), entered=True, response="COB"))
+        planilla = self.factory.build(
+            loan_status="old",
+            attempts=attempts,
+            outstanding="140000.00",
+            installment="100000.00",
+        )
+        shots = compute_shots(planilla, club_mutual_mode=True)
+        self.assertEqual(shots, [Decimal("90000.00"), Decimal("50000.00")])
+
 
 class ClassificationOutcomeTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -337,6 +379,14 @@ class ClassificationOutcomeTests(unittest.TestCase):
         self.assertEqual(row["Mes Pasado - Total sin Cobrar"], Decimal("4000.00"))
         self.assertEqual(row["Mes Pasado - Máximo Cobrado"], Decimal("10000.00"))
 
+    def test_club_mutual_mode_changes_shots_in_classification(self) -> None:
+        attempts = AttemptSummary.empty()
+        attempts.register(Attempt(amount=Decimal("10000.00"), entered=True, response="COB"))
+        planilla = self.factory.build(attempts=attempts, outstanding="120000.00", installment="40000.00")
+        outcome = determine_planilla_outcome(planilla, arrastre_mode=False, club_mutual_mode=True)
+        self.assertEqual(outcome.category, "a-enviar")
+        self.assertEqual(outcome.shots, [Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("16000.00")])
+
 
 
     def test_report_planillas_match_unique_exports(self) -> None:
@@ -411,6 +461,54 @@ class SortApiRowsTests(unittest.TestCase):
         cuotas = [row[8] for row in sorted_rows]
         self.assertEqual(planillas, ["100", "200", "200"])
         self.assertEqual(cuotas, [3, 1, 2])
+
+
+class ClubMutualFilterTests(unittest.TestCase):
+    def test_build_filter_uses_selected_linea_superior(self) -> None:
+        default_filter = build_filter_for_date(_dt.date(2026, 4, 30))
+        club_filter = build_filter_for_date(_dt.date(2026, 4, 30), line_superior=CLUB_MUTUAL_LINEA_SUPERIOR)
+        self.assertIn(DEFAULT_LINEA_SUPERIOR, default_filter)
+        self.assertIn(CLUB_MUTUAL_LINEA_SUPERIOR, club_filter)
+
+    def test_filter_api_rows_for_mode_keeps_only_club_mutual(self) -> None:
+        club_row = ApiRow(
+            nro_socio="1",
+            planilla="100",
+            total_installments=12,
+            linea_codigo="10920",
+            cbu="0200123412341234567890",
+            nro_doc="20111222",
+            fecha_emision=_dt.date(2025, 1, 1),
+            saldo_cuota=Decimal("1000.00"),
+            nro_cuota=1,
+            fecha_cuota=_dt.date(2025, 2, 1),
+            sucursal_banco="001",
+            nro_cuenta_banco="1234567890",
+            caja40_raw="10",
+            caja40_int=10,
+            installment_value=Decimal("40000.00"),
+            linea_superior=CLUB_MUTUAL_LINEA_SUPERIOR,
+        )
+        other_row = ApiRow(
+            nro_socio="2",
+            planilla="200",
+            total_installments=12,
+            linea_codigo="10120",
+            cbu="0200123412341234567890",
+            nro_doc="30111222",
+            fecha_emision=_dt.date(2025, 1, 1),
+            saldo_cuota=Decimal("1000.00"),
+            nro_cuota=1,
+            fecha_cuota=_dt.date(2025, 2, 1),
+            sucursal_banco="001",
+            nro_cuenta_banco="1234567890",
+            caja40_raw="10",
+            caja40_int=10,
+            installment_value=Decimal("40000.00"),
+            linea_superior=DEFAULT_LINEA_SUPERIOR,
+        )
+        filtered = filter_api_rows_for_mode([club_row, other_row], club_mutual_mode=True)
+        self.assertEqual(filtered, [club_row])
 
 
 if __name__ == "__main__":

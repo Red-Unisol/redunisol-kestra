@@ -1,0 +1,13 @@
+[project]
+name = "coinag-balance-guard"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "requests==2.32.5",
+]
+
+[project.scripts]
+coinag-balance-guard = "coinag_balance_guard.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

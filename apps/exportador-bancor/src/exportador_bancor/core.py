@@ -32,11 +32,15 @@ CENT = Decimal("0.01")
 THOUSAND = Decimal("1000")
 SHOT_MAX = Decimal("80000.00")
 SMALL_SHOT_THRESHOLD = Decimal("500.00")
+CLUB_MUTUAL_SHOT_MIN = Decimal("11000.00")
+DEFAULT_LINEA_SUPERIOR = "LINEAS CBU BANCOS VARIOS"
+CLUB_MUTUAL_LINEA_SUPERIOR = "LINEAS CLUB MUTUAL"
+LINEA_SUPERIOR_FIELD = "Prestamo.LineaPrestamo.Superior.Descripcion"
 
 API_URL = "https://celesol.dyndns.org:5050/api/Empresa/EvaluateList"
 FILTER_TEMPLATE = (
     "[NroCuota] > 0 AND [SaldoCuota] > 0.0m AND [Fecha] <= #{cutoff_date}# "
-    "AND [Prestamo.LineaPrestamo.Superior.Descripcion] = 'LINEAS CBU BANCOS VARIOS'"
+    f"AND [{LINEA_SUPERIOR_FIELD}] = '{{linea_superior}}'"
 )
 FIELDS: Sequence[str] = [
     "Prestamo.SocioTitular.Socio.NroSocio",
@@ -53,6 +57,7 @@ FIELDS: Sequence[str] = [
     "Prestamo.SocioTitular.Socio.CuentaBancariaHabitual.NroCuenta",
     "Prestamo.SocioTitular.Socio.SocAux.Caja40",
     "Prestamo.[Cuota Resultante Prestamo]",
+    LINEA_SUPERIOR_FIELD,
 ]
 MAX_ROWS = 20_000
 COLUMN_ORDER: Sequence[str] = (
@@ -154,6 +159,7 @@ _API_ROW_KEYS = (
     "nro_cuenta_banco",
     "caja_40",
     "installment_value",
+    "linea_superior",
 )
 
 def month_end_for(date_value: _dt.date) -> _dt.date:
@@ -166,8 +172,22 @@ def month_end_for_parts(year: int, month: int) -> _dt.date:
     return _dt.date(year, month, last_day)
 
 
-def build_filter_for_date(cutoff_date: _dt.date) -> str:
-    return FILTER_TEMPLATE.format(cutoff_date=cutoff_date.strftime("%Y-%m-%d"))
+def linea_superior_for_mode(*, club_mutual_mode: bool) -> str:
+    if club_mutual_mode:
+        return CLUB_MUTUAL_LINEA_SUPERIOR
+    return DEFAULT_LINEA_SUPERIOR
+
+
+def build_filter_for_date(
+    cutoff_date: _dt.date,
+    *,
+    line_superior: str = DEFAULT_LINEA_SUPERIOR,
+) -> str:
+    escaped_line_superior = line_superior.replace("'", "''")
+    return FILTER_TEMPLATE.format(
+        cutoff_date=cutoff_date.strftime("%Y-%m-%d"),
+        linea_superior=escaped_line_superior,
+    )
 
 
 FILTER = build_filter_for_date(month_end_for(_dt.date.today()))
@@ -238,6 +258,7 @@ class ApiRow:
     caja40_raw: str
     caja40_int: Optional[int]
     installment_value: Decimal
+    linea_superior: str
 
 
 @dataclass
@@ -343,6 +364,27 @@ def _round_base_shot(base_value: Decimal, installment_value: Decimal, max_shots:
         rounded = _quantize_currency(base_value)
     if rounded > SHOT_MAX:
         rounded = SHOT_MAX
+    return _quantize_currency(rounded)
+
+
+def _max_shots_for_planilla(planilla: ConsolidatedPlanilla) -> int:
+    if planilla.planillas_per_socio >= 3:
+        return 3
+    if planilla.planillas_per_socio == 2:
+        return 5
+    return 10
+
+
+def _normalize_club_mutual_shot_amount(
+    value: Decimal,
+    *,
+    amount_to_collect: Decimal,
+) -> Decimal:
+    rounded = _round_to_thousand(value)
+    if rounded <= Decimal("0"):
+        rounded = _quantize_currency(value)
+    if amount_to_collect >= CLUB_MUTUAL_SHOT_MIN and rounded < CLUB_MUTUAL_SHOT_MIN:
+        rounded = CLUB_MUTUAL_SHOT_MIN
     return _quantize_currency(rounded)
 
 def _to_decimal(value: object) -> Decimal:
@@ -551,10 +593,31 @@ def parse_api_rows(rows: Iterable[Sequence[object]]) -> List[ApiRow]:
                 caja40_raw=_as_text_or_blank(row_map.get("caja_40")),
                 caja40_int=_parse_optional_int(row_map.get("caja_40")),
                 installment_value=_to_decimal(row_map.get("installment_value")),
+                linea_superior=_as_text_or_blank(row_map.get("linea_superior")).strip(),
             )
         )
     logger.debug("Parsed %s API rows", len(parsed))
     return parsed
+
+
+def filter_api_rows_for_mode(
+    api_rows: Sequence[ApiRow],
+    *,
+    club_mutual_mode: bool,
+) -> List[ApiRow]:
+    if not club_mutual_mode:
+        return list(api_rows)
+
+    filtered = [row for row in api_rows if row.linea_superior.strip() == CLUB_MUTUAL_LINEA_SUPERIOR]
+    if filtered:
+        return filtered
+
+    if api_rows and not any(row.linea_superior.strip() for row in api_rows):
+        raise RuntimeError(
+            "El modo Club Mutual requiere que la respuesta incluya "
+            f"{LINEA_SUPERIOR_FIELD} en la proyeccion del API o dump."
+        )
+    return filtered
 
 
 def sort_api_rows(rows: Iterable[Sequence[object]]) -> List[Sequence[object]]:
@@ -616,7 +679,7 @@ def consolidate_planillas(
     return consolidated
 
 
-def compute_shots(planilla: ConsolidatedPlanilla) -> List[Decimal]:
+def _compute_standard_shots(planilla: ConsolidatedPlanilla) -> List[Decimal]:
     amount_cap = _quantize_currency(planilla.installment_value * Decimal("1.5"))
     amount_to_collect = min(planilla.outstanding_amount, amount_cap)
     amount_to_collect = _quantize_currency(amount_to_collect)
@@ -644,12 +707,7 @@ def compute_shots(planilla: ConsolidatedPlanilla) -> List[Decimal]:
     if shot_amount <= Decimal("0"):
         return []
 
-    if planilla.planillas_per_socio >= 3:
-        max_shots = 3
-    elif planilla.planillas_per_socio == 2:
-        max_shots = 5
-    else:
-        max_shots = 10
+    max_shots = _max_shots_for_planilla(planilla)
 
     n_full = int(amount_to_collect // shot_amount)
     remainder = _quantize_currency(amount_to_collect - (shot_amount * n_full))
@@ -739,10 +797,84 @@ def compute_shots(planilla: ConsolidatedPlanilla) -> List[Decimal]:
     return shots
 
 
+def _compute_club_mutual_shots(planilla: ConsolidatedPlanilla) -> List[Decimal]:
+    amount_cap = _quantize_currency(planilla.installment_value * Decimal("1.5"))
+    amount_to_collect = min(planilla.outstanding_amount, amount_cap)
+    amount_to_collect = _quantize_currency(amount_to_collect)
+    if amount_to_collect <= Decimal("0"):
+        return []
+
+    if planilla.loan_status == "new":
+        shot_amount = amount_to_collect
+    else:
+        if not planilla.attempts.has_attempts:
+            return []
+        entered = planilla.attempts.entered_amounts
+        if entered:
+            shot_amount = max(entered)
+        else:
+            attempts = planilla.attempts.all_amounts
+            if not attempts:
+                return []
+            shot_amount = min(attempts) / Decimal("2")
+
+    shot_amount = _normalize_club_mutual_shot_amount(
+        shot_amount,
+        amount_to_collect=amount_to_collect,
+    )
+    if shot_amount <= Decimal("0"):
+        return []
+
+    max_shots = _max_shots_for_planilla(planilla)
+    if amount_to_collect >= CLUB_MUTUAL_SHOT_MIN:
+        max_shots = min(max_shots, max(1, int(amount_to_collect // CLUB_MUTUAL_SHOT_MIN)))
+    max_shots = max(1, max_shots)
+
+    n_full = int(amount_to_collect // shot_amount)
+    remainder = _quantize_currency(amount_to_collect - (shot_amount * n_full))
+    shots: List[Decimal] = []
+    if n_full:
+        shots.extend([shot_amount] * n_full)
+    if remainder > Decimal("0"):
+        shots.append(remainder)
+    if not shots:
+        shots = [amount_to_collect]
+
+    if len(shots) > max_shots:
+        keep = max_shots - 1
+        trimmed = shots[:keep] if keep > 0 else []
+        tail_sum = _quantize_currency(sum(shots[keep:], Decimal("0")))
+        if keep > 0:
+            trimmed.append(tail_sum)
+            shots = trimmed
+        else:
+            shots = [tail_sum]
+
+    if amount_to_collect >= CLUB_MUTUAL_SHOT_MIN and len(shots) > 1 and shots[-1] < CLUB_MUTUAL_SHOT_MIN:
+        shots[0] = _quantize_currency(shots[0] + shots[-1])
+        shots.pop()
+
+    correction = _quantize_currency(amount_to_collect - sum(shots, Decimal("0")))
+    if shots:
+        shots[-1] = _quantize_currency(shots[-1] + correction)
+    return shots
+
+
+def compute_shots(
+    planilla: ConsolidatedPlanilla,
+    *,
+    club_mutual_mode: bool = False,
+) -> List[Decimal]:
+    if club_mutual_mode:
+        return _compute_club_mutual_shots(planilla)
+    return _compute_standard_shots(planilla)
+
+
 def determine_planilla_outcome(
     planilla: ConsolidatedPlanilla,
     *,
     arrastre_mode: bool,
+    club_mutual_mode: bool = False,
 ) -> ClassificationOutcome:
     cbu_clean = planilla.cbu.strip() if planilla.cbu else ""
     estado_cbu = _describe_cbu_status(cbu_clean)
@@ -794,7 +926,7 @@ def determine_planilla_outcome(
             caja40_permitido=caja40_permitido,
         )
 
-    shots = compute_shots(planilla)
+    shots = compute_shots(planilla, club_mutual_mode=club_mutual_mode)
     if not shots:
         return ClassificationOutcome(
             category="bancor-pero-no-enviamos",
@@ -939,13 +1071,18 @@ def classify_planillas(
     *,
     dev_mode: bool = False,
     arrastre_mode: bool = False,
+    club_mutual_mode: bool = False,
 ) -> Tuple[Dict[str, List[Dict[str, object]]], List[Dict[str, object]], List[Dict[str, object]]]:
     outputs: Dict[str, List[Dict[str, object]]] = {key: [] for key in EXPORT_FILENAMES}
     discarded_entries: List[Dict[str, object]] = []
     report_rows: List[Dict[str, object]] = []
 
     for planilla in planillas:
-        outcome = determine_planilla_outcome(planilla, arrastre_mode=arrastre_mode)
+        outcome = determine_planilla_outcome(
+            planilla,
+            arrastre_mode=arrastre_mode,
+            club_mutual_mode=club_mutual_mode,
+        )
         report_rows.append(_build_report_record(planilla, outcome, report_date))
         if outcome.category == "no-bancor":
             if dev_mode:
@@ -1260,6 +1397,7 @@ def generate_report(
     output_dir: Path | str = "output",
     dev_mode: bool = False,
     arrastre_mode: bool = False,
+    club_mutual_mode: bool = False,
     progress_callback: Optional[ProgressCallback] = None,
     api_dump_path: Path | None = None,
 ) -> ExportResult:
@@ -1275,7 +1413,10 @@ def generate_report(
     else:
         report_date = month_end_for(report_date)
 
-    effective_filter = filter_expr or build_filter_for_date(report_date)
+    effective_filter = filter_expr or build_filter_for_date(
+        report_date,
+        line_superior=linea_superior_for_mode(club_mutual_mode=club_mutual_mode),
+    )
 
     notify(0.05, "Validando insumos...")
     attempts = read_excel_attempts(input_excel_path)
@@ -1305,6 +1446,14 @@ def generate_report(
 
     notify(0.4, f"Procesando {len(rows)} cuotas recibidas...")
     api_rows = parse_api_rows(rows)
+    api_rows = filter_api_rows_for_mode(api_rows, club_mutual_mode=club_mutual_mode)
+    if not api_rows:
+        if club_mutual_mode:
+            raise RuntimeError(
+                "EvaluateList no devolvio cuotas para la linea superior "
+                f"{CLUB_MUTUAL_LINEA_SUPERIOR}."
+            )
+        raise RuntimeError("EvaluateList returned no parsable rows for the given criteria.")
     planillas = consolidate_planillas(api_rows, attempts)
 
     notify(0.6, f"Clasificando {len(planillas)} planillas...")
@@ -1313,6 +1462,7 @@ def generate_report(
         report_date,
         dev_mode=dev_mode,
         arrastre_mode=arrastre_mode,
+        club_mutual_mode=club_mutual_mode,
     )
 
     notify(0.8, "Generando archivos Excel...")

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Coinag Balance Guard every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=coinag-balance-guard.service
+
+[Install]
+WantedBy=timers.target

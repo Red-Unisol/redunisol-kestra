@@ -1,0 +1,12 @@
+[Unit]
+Description=Coinag Balance Guard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/coinag-balance-guard
+EnvironmentFile=/opt/coinag-balance-guard/coinag-balance-guard.env
+ExecStart=/opt/coinag-balance-guard/.venv/bin/python -m coinag_balance_guard
+User=root
+Group=root

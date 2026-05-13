@@ -10,7 +10,6 @@ from tkinter import filedialog, messagebox, ttk
 
 from .core import (
     ExportResult,
-    build_filter_for_date,
     generate_report,
     month_end_for_parts,
 )
@@ -40,7 +39,7 @@ class ExportApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Exportar Bancor")
-        self.geometry("520x320")
+        self.geometry("520x350")
         self.resizable(True, False)
 
         default_excel = Path("example-input.xlsx").resolve()
@@ -53,6 +52,7 @@ class ExportApp(tk.Tk):
         self._excel_path_var = tk.StringVar(value=str(default_excel))
         self._output_dir_var = tk.StringVar(value=str(default_output))
         self._arrastre_var = tk.BooleanVar(value=False)
+        self._club_mutual_var = tk.BooleanVar(value=False)
         self._status_var = tk.StringVar(value="Listo para generar el reporte.")
         self._progress_var = tk.DoubleVar(value=0.0)
 
@@ -83,9 +83,14 @@ class ExportApp(tk.Tk):
         ttk.Checkbutton(frame, text="Arrastre (CAJA40 0/50/60/90)", variable=self._arrastre_var).grid(
             row=3, column=0, columnspan=3, sticky="w", pady=(0, 6)
         )
+        ttk.Checkbutton(
+            frame,
+            text="Club Mutual (solo LINEAS CLUB MUTUAL, shot minimo 11000)",
+            variable=self._club_mutual_var,
+        ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 6))
 
         self._button = ttk.Button(frame, text="Generar reporte", command=self._start_export)
-        self._button.grid(row=4, column=0, columnspan=3, pady=(12, 12))
+        self._button.grid(row=5, column=0, columnspan=3, pady=(12, 12))
 
         self._progress = ttk.Progressbar(
             frame,
@@ -93,10 +98,10 @@ class ExportApp(tk.Tk):
             maximum=100,
             mode="determinate",
         )
-        self._progress.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self._progress.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(0, 10))
 
         self._status_label = ttk.Label(frame, textvariable=self._status_var, wraplength=440, justify="center")
-        self._status_label.grid(row=6, column=0, columnspan=3, pady=(4, 0))
+        self._status_label.grid(row=7, column=0, columnspan=3, pady=(4, 0))
 
     def _choose_excel(self) -> None:
         initialdir = Path(self._excel_path_var.get()).expanduser().parent
@@ -128,7 +133,6 @@ class ExportApp(tk.Tk):
             return
 
         report_date = month_end_for_parts(self._current_year, month_number)
-        filter_expr = build_filter_for_date(report_date)
 
         if not excel_path.exists():
             messagebox.showerror("Archivo no encontrado", f"No se encontro el archivo:\n{excel_path}", parent=self)
@@ -141,7 +145,7 @@ class ExportApp(tk.Tk):
 
         worker = threading.Thread(
             target=self._run_export,
-            args=(report_date, filter_expr, excel_path, output_dir),
+            args=(report_date, excel_path, output_dir),
             daemon=True,
         )
         worker.start()
@@ -149,7 +153,6 @@ class ExportApp(tk.Tk):
     def _run_export(
         self,
         report_date: _dt.date,
-        filter_expr: str,
         excel_path: Path,
         output_dir: Path,
     ) -> None:
@@ -159,11 +162,11 @@ class ExportApp(tk.Tk):
         try:
             result = generate_report(
                 report_date=report_date,
-                filter_expr=filter_expr,
                 input_excel=excel_path,
                 output_dir=output_dir,
                 dev_mode=False,
                 arrastre_mode=self._arrastre_var.get(),
+                club_mutual_mode=self._club_mutual_var.get(),
                 progress_callback=progress_cb,
             )
         except Exception as exc:

@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Habilita el criterio arrastre (CAJA40 en {0,50,60,90, vacío}).",
     )
     parser.add_argument(
+        "--club-mutual",
+        action="store_true",
+        help="Usa LINEAS CLUB MUTUAL y shots sin tope superior con piso de 11000.",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suprime mensajes de progreso (solo muestra el resumen final).",
@@ -103,6 +108,7 @@ def main() -> None:
             output_dir=args.output_dir,
             dev_mode=args.dev_mode,
             arrastre_mode=args.arrastre,
+            club_mutual_mode=args.club_mutual,
             progress_callback=_progress_printer(not args.quiet),
             api_dump_path=args.api_dump,
         )
