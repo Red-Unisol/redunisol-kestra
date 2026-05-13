@@ -19,9 +19,8 @@ tasks:
         - consulta_quiebra_credix/**
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-    containerImage: ghcr.io/kestra-io/pydata:latest
-    beforeCommands:
-      - pip install kestra > /dev/null
+      pullPolicy: IF_NOT_PRESENT
+    containerImage: ghcr.io/kestra-io/kestrapy:latest
     env:
       TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
     commands:
@@ -45,9 +44,8 @@ tasks:
         - consulta_quiebra_credix/**
     taskRunner:
       type: io.kestra.plugin.scripts.runner.docker.Docker
-    containerImage: ghcr.io/kestra-io/pydata:latest
-    beforeCommands:
-      - pip install kestra > /dev/null
+      pullPolicy: IF_NOT_PRESENT
+    containerImage: ghcr.io/kestra-io/kestrapy:latest
     env:
       TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
       CREDIX_CACHE_BY_CUIL_JSON: "{{ (outputs.leer_cache_cuil.value ?? null) | json }}"
