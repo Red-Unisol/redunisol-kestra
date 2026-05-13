@@ -12,10 +12,17 @@ if str(FILES_ROOT) not in sys.path:
 
 from consulta_quiebra_credix.service import (  # noqa: E402
     SearchRequest,
+    build_cache_entry,
+    build_cache_lookup,
     _find_detail_next_control,
+    _normalize_report_section,
+    _refresh_online_updates_if_available,
     build_error_result,
     build_output_payload,
     build_single_result,
+    cache_key_for_cuil,
+    cache_key_for_name,
+    cached_result_if_fresh,
     _is_detail_summary_page,
     normalize_cuit,
     normalize_name,
@@ -51,10 +58,13 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
             request,
             [
                 {
-                    "fecha": "2026-04-06",
-                    "fuente": "Boletin",
-                    "id": "123",
-                    "resumen": "Sin novedades",
+                    "index": 1,
+                    "title": "Datos Filiatorios",
+                    "source": "",
+                    "headers": [],
+                    "rows": [["Cuil", "20-12345678-3"]],
+                    "records": [{"Cuil": "20-12345678-3"}],
+                    "text": "Datos Filiatorios Cuil 20-12345678-3",
                 }
             ],
         )
@@ -65,7 +75,39 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         self.assertEqual(output["status"], "single")
         self.assertEqual(
             output["response_json"],
-            '{"status":"single","data":[{"fecha":"2026-04-06","fuente":"Boletin","id":"123","resumen":"Sin novedades"}]}',
+            '{"status":"single","data":[{"index":1,"title":"Datos Filiatorios","source":"","headers":[],"rows":[["Cuil","20-12345678-3"]],"records":[{"Cuil":"20-12345678-3"}],"text":"Datos Filiatorios Cuil 20-12345678-3"}]}',
+        )
+
+    def test_normalize_report_section_builds_key_value_records(self) -> None:
+        section = _normalize_report_section(
+            {
+                "index": 5,
+                "text": "Datos Filiatorios Cuil 20-12345678-3 Documento 12.345.678",
+                "rows": [
+                    {"cells": [{"text": "Datos Filiatorios", "header": True}], "has_header": True},
+                    {
+                        "cells": [
+                            {"text": "Cuil", "header": True},
+                            {"text": "20-12345678-3", "header": False},
+                        ],
+                        "has_header": True,
+                    },
+                    {
+                        "cells": [
+                            {"text": "Documento", "header": True},
+                            {"text": "12.345.678", "header": False},
+                        ],
+                        "has_header": True,
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(section["index"], 5)
+        self.assertEqual(section["title"], "Datos Filiatorios")
+        self.assertEqual(
+            section["records"],
+            [{"Cuil": "20-12345678-3"}, {"Documento": "12.345.678"}],
         )
 
     def test_build_single_result_prefers_scraped_name_when_provided(self) -> None:
@@ -92,6 +134,33 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
     def test_normalizers_strip_noise(self) -> None:
         self.assertEqual(normalize_cuit("20-12345678-3"), "20123456783")
         self.assertEqual(normalize_name("  Maria   del  Mar "), "Maria del Mar")
+
+    def test_cache_lookup_builds_cuil_and_name_keys(self) -> None:
+        lookup = build_cache_lookup({"cuit": "20-12345678-3", "nombre": "  José  Pérez "})
+
+        self.assertEqual(lookup["cuil_cache_key"], "credixsa:cuil:20123456783")
+        self.assertEqual(lookup["name_cache_key"], cache_key_for_name("Jose Perez"))
+        self.assertNotEqual(lookup["name_cache_lookup_key"], "credixsa:cache:lookup:none")
+
+    def test_cache_entry_round_trips_when_fresh(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20123456783", nombre=""),
+            [{"title": "Datos Filiatorios", "rows": [["Cuil", "20-12345678-3"]]}],
+            cuit="20123456783",
+            nombre="Juan Perez",
+        )
+
+        entry = build_cache_entry(result)
+        self.assertIsNotNone(entry)
+        cached = cached_result_if_fresh(entry)
+
+        self.assertIsNotNone(cached)
+        self.assertEqual(cached["status"], "single")
+        self.assertEqual(cached["cuit"], "20123456783")
+
+    def test_cache_key_for_name_is_accent_insensitive(self) -> None:
+        self.assertEqual(cache_key_for_name("José   Pérez"), cache_key_for_name("jose perez"))
+        self.assertEqual(cache_key_for_cuil("20-12345678-3"), "credixsa:cuil:20123456783")
 
     def test_is_detail_summary_page_detects_credix_detail_view(self) -> None:
         class BodyLocator:
@@ -126,6 +195,65 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
                 return StubLocator(False)
 
         self.assertIsNotNone(_find_detail_next_control(StubPage()))
+
+    def test_refresh_online_updates_clicks_update_all_when_available(self) -> None:
+        class StubLocator:
+            def __init__(self, *, visible=True, text="", enabled=True):
+                self.visible = visible
+                self.text = text
+                self.enabled = enabled
+                self.clicked = False
+                self.first = self
+
+            def count(self):
+                return 1 if self.visible else 0
+
+            def is_visible(self):
+                return self.visible
+
+            def is_enabled(self):
+                return self.enabled
+
+            def click(self):
+                self.clicked = True
+
+            def inner_text(self, timeout=None):
+                return self.text
+
+        class StubPage:
+            url = "https://www.credixsa.com/nuevo/con_cuit_pde_ajax.php"
+
+            def __init__(self):
+                self.update_all = StubLocator()
+                self.next_button = StubLocator(enabled=True)
+                self.body = StubLocator(text="PASO 3: Actualizaciones en linea")
+
+            def locator(self, selector, has_text=None):
+                if selector == "#procesar_todo_auto":
+                    return self.update_all
+                if selector == "#btn_siguiente":
+                    return self.next_button
+                if selector == "body":
+                    return self.body
+                return StubLocator(visible=False)
+
+            def wait_for_load_state(self, state):
+                return None
+
+        config = type(
+            "Config",
+            (),
+            {"timeout_ms": 1000, "debug_enabled": False},
+        )()
+        page = StubPage()
+
+        _refresh_online_updates_if_available(
+            page,
+            config,
+            SearchRequest(cuit="20123456783", nombre=""),
+        )
+
+        self.assertTrue(page.update_all.clicked)
 
 
 if __name__ == "__main__":

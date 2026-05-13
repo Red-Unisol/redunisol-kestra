@@ -33,12 +33,12 @@ return [
         ],
         [
             'id' => 'consulta-quiebra-credix',
-            'title' => 'Consulta Quiebras Santa Fe',
-            'description' => 'Consulta quiebras por CUIL, DNI y/o nombre para obtener coincidencias o edictos judiciales.',
+            'title' => 'Consulta CredixSA',
+            'description' => 'Consulta CredixSA por CUIL, DNI y/o nombre para obtener coincidencias o el informe completo disponible.',
             'category' => 'Analisis de credito',
             'status' => 'active',
             'icon' => 'credit-path',
-            'actionLabel' => 'Consultar quiebras',
+            'actionLabel' => 'Consultar CredixSA',
             'helper' => 'La consulta usa el webhook protegido de Kestra desde el backend Laravel.',
         ],
         [

@@ -386,6 +386,10 @@ function App({ branding, tools }) {
                                                     <span>Registros</span>
                                                     <strong>{getQuiebraRecordCount(result)}</strong>
                                                 </div>
+                                                <div className="result__metric">
+                                                    <span>Cache</span>
+                                                    <strong>{result.cache_hit ? 'Si' : 'No'}</strong>
+                                                </div>
                                             </>
                                         )}
 
@@ -476,32 +480,11 @@ function App({ branding, tools }) {
 
                                         {result.status === 'single' && (
                                             <div className="result__stack">
-                                                <h4 className="result__subheading">Edictos judiciales</h4>
+                                                <h4 className="result__subheading">Informe CredixSA</h4>
                                                 {parseJsonArray(result.data_json).length > 0 ? (
-                                                    <div className="result__tableWrap">
-                                                        <table className="result__table">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th>Fecha</th>
-                                                                    <th>Fuente</th>
-                                                                    <th>ID</th>
-                                                                    <th>Resumen</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {parseJsonArray(result.data_json).map((item, index) => (
-                                                                    <tr key={`${item.id || 'edict'}-${index}`}>
-                                                                        <td>{item.fecha || 'Sin dato'}</td>
-                                                                        <td>{item.fuente || 'Sin dato'}</td>
-                                                                        <td>{item.id || 'Sin dato'}</td>
-                                                                        <td>{item.resumen || 'Sin dato'}</td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
+                                                    <CredixReportSections sections={parseJsonArray(result.data_json)} />
                                                 ) : (
-                                                    <p className="result__empty">No hay filas en la tabla de edictos.</p>
+                                                    <p className="result__empty">No hay secciones disponibles en el informe.</p>
                                                 )}
                                             </div>
                                         )}
@@ -514,6 +497,71 @@ function App({ branding, tools }) {
             )}
         </div>
     );
+}
+
+function CredixReportSections({ sections }) {
+    return (
+        <div className="result__stack">
+            {sections.map((section, index) => (
+                <article className="result__listItem" key={`${section.title || 'section'}-${section.index ?? index}`}>
+                    <strong>{section.title || `Seccion ${index + 1}`}</strong>
+                    {section.source && <span>Fuente: {section.source}</span>}
+                    <CredixSectionTable section={section} />
+                </article>
+            ))}
+        </div>
+    );
+}
+
+function CredixSectionTable({ section }) {
+    const records = Array.isArray(section.records) ? section.records : [];
+    const rows = Array.isArray(section.rows) ? section.rows : [];
+
+    if (records.length > 0) {
+        const headers = Array.from(new Set(records.flatMap((record) => Object.keys(record))));
+        return (
+            <div className="result__tableWrap">
+                <table className="result__table">
+                    <thead>
+                        <tr>
+                            {headers.map((header) => (
+                                <th key={header}>{header}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {records.map((record, rowIndex) => (
+                            <tr key={rowIndex}>
+                                {headers.map((header) => (
+                                    <td key={header}>{record[header] || 'Sin dato'}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    }
+
+    if (rows.length > 0) {
+        return (
+            <div className="result__tableWrap">
+                <table className="result__table">
+                    <tbody>
+                        {rows.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                                {(Array.isArray(row) ? row : []).map((cell, cellIndex) => (
+                                    <td key={cellIndex}>{cell || 'Sin dato'}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    }
+
+    return <span>{section.text || 'Sin detalle'}</span>;
 }
 
 function getResultTone(toolId, result, error) {
@@ -648,8 +696,8 @@ function getResultCopy(toolId, result, error) {
         if (result.status === 'single') {
             const total = parseJsonArray(result.data_json).length;
             return total > 0
-                ? `Se obtuvo ${total} fila${total === 1 ? '' : 's'} de edictos para la persona encontrada.`
-                : 'Se encontro la persona, pero no hay filas en la tabla de edictos.';
+                ? `Se obtuvo ${total} seccion${total === 1 ? '' : 'es'} del informe para la persona encontrada.`
+                : 'Se encontro la persona, pero no hay secciones disponibles en el informe.';
         }
         if (result.status === 'multiple') {
             const total = parseJsonArray(result.rows_json).length;
