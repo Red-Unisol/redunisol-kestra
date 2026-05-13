@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - optional outside Kestra
     Kestra = None
 
 from .service import build_cache_lookup
+from .service import CACHE_DUMMY_KEY
 
 
 def main() -> int:
@@ -25,8 +26,8 @@ def main() -> int:
             "nombre": "",
             "cuil_cache_key": "",
             "name_cache_key": "",
-            "cuil_cache_lookup_key": "credixsa:cache:lookup:none",
-            "name_cache_lookup_key": "credixsa:cache:lookup:none",
+            "cuil_cache_lookup_key": CACHE_DUMMY_KEY,
+            "name_cache_lookup_key": CACHE_DUMMY_KEY,
             "error": str(exc),
         }
 
