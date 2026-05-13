@@ -30,5 +30,5 @@ services:
       CREDIXSA_CACHE_DB_PATH: /data/credixsa-cache/credixsa.sqlite
       CREDIXSA_CACHE_MAX_AGE_DAYS: 7
     volumes:
-      - /opt/kestra/data/credixsa-cache:/data/credixsa-cache:ro
+      - /opt/kestra/data/credixsa-cache:/data/credixsa-cache
     restart: unless-stopped
