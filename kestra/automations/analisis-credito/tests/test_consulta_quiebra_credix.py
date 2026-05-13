@@ -23,6 +23,7 @@ from consulta_quiebra_credix.service import (  # noqa: E402
     cache_key_for_cuil,
     cache_key_for_name,
     cached_result_if_fresh,
+    find_cached_result_in_payloads,
     _is_detail_summary_page,
     normalize_cuit,
     normalize_name,
@@ -161,6 +162,42 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
     def test_cache_key_for_name_is_accent_insensitive(self) -> None:
         self.assertEqual(cache_key_for_name("José   Pérez"), cache_key_for_name("jose perez"))
         self.assertEqual(cache_key_for_cuil("20-12345678-3"), "credixsa.cuil.20123456783")
+
+    def test_find_cached_result_in_payloads_rejects_mismatched_name_hit(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20999999999", nombre=""),
+            [{"title": "Datos Filiatorios", "rows": [["Cuil", "20-99999999-9"]]}],
+            cuit="20999999999",
+            nombre="Juan Perez",
+        )
+        cache_entry = build_cache_entry(result)
+
+        cached = find_cached_result_in_payloads(
+            SearchRequest(cuit="20123456783", nombre="Juan Perez"),
+            None,
+            cache_entry,
+        )
+
+        self.assertIsNone(cached)
+
+    def test_find_cached_result_in_payloads_returns_cuil_hit(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20123456783", nombre=""),
+            [{"title": "Datos Filiatorios", "rows": [["Cuil", "20-12345678-3"]]}],
+            cuit="20123456783",
+            nombre="Juan Perez",
+        )
+        cache_entry = build_cache_entry(result)
+
+        cached = find_cached_result_in_payloads(
+            SearchRequest(cuit="20123456783", nombre=""),
+            cache_entry,
+            None,
+        )
+
+        self.assertIsNotNone(cached)
+        self.assertTrue(cached["cache_hit"])
+        self.assertEqual(cached["cache_source"], "cuil")
 
     def test_is_detail_summary_page_detects_credix_detail_view(self) -> None:
         class BodyLocator:

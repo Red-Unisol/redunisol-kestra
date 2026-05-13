@@ -299,11 +299,25 @@ def decode_cache_env(value: str) -> dict[str, Any] | None:
 
 
 def find_cached_result(request: SearchRequest, config: CredixConfig) -> dict[str, Any] | None:
+    return find_cached_result_in_payloads(
+        request,
+        config.cache_by_cuil,
+        config.cache_by_name,
+        config.cache_max_age_days,
+    )
+
+
+def find_cached_result_in_payloads(
+    request: SearchRequest,
+    cache_by_cuil: dict[str, Any] | None,
+    cache_by_name: dict[str, Any] | None,
+    max_age_days: int = CACHE_MAX_AGE_DAYS,
+) -> dict[str, Any] | None:
     for cache_payload, cache_source in (
-        (config.cache_by_cuil, "cuil"),
-        (config.cache_by_name, "name"),
+        (cache_by_cuil, "cuil"),
+        (cache_by_name, "name"),
     ):
-        result = cached_result_if_fresh(cache_payload, config.cache_max_age_days)
+        result = cached_result_if_fresh(cache_payload, max_age_days)
         if result is None:
             continue
         if cache_source == "name" and request.cuit:
