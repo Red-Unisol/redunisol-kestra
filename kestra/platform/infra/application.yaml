@@ -28,3 +28,9 @@ kestra:
     enabled: false
   ui-anonymous-usage-report:
     enabled: false
+
+plugins:
+  configurations:
+    - type: io.kestra.plugin.scripts.runner.docker.Docker
+      values:
+        volume-enabled: true
