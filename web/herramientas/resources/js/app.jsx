@@ -56,6 +56,9 @@ function App({ branding, tools }) {
 
     const selectedTool = tools.find((tool) => tool.id === selectedToolId) ?? null;
     const catalog = [...tools, placeholderTool];
+    const credixNormalized = selectedTool?.id === 'consulta-quiebra-credix'
+        ? parseJsonObject(result?.normalized_json)
+        : null;
 
     const openTool = (tool) => {
         if (tool.isPlaceholder || tool.status !== 'active') {
@@ -481,6 +484,7 @@ function App({ branding, tools }) {
                                         {result.status === 'single' && (
                                             <div className="result__stack">
                                                 <h4 className="result__subheading">Informe CredixSA</h4>
+                                                {credixNormalized && <CredixNormalizedSummary normalized={credixNormalized} />}
                                                 {parseJsonArray(result.data_json).length > 0 ? (
                                                     <CredixReportSections sections={parseJsonArray(result.data_json)} />
                                                 ) : (
@@ -509,6 +513,157 @@ function CredixReportSections({ sections }) {
                     <CredixSectionTable section={section} />
                 </article>
             ))}
+        </div>
+    );
+}
+
+function CredixNormalizedSummary({ normalized }) {
+    const persona = normalized?.persona || {};
+    const bcra = normalized?.bcra || {};
+    const previsional = normalized?.previsional || {};
+    const aportes = normalized?.aportes || {};
+    const quiebras = normalized?.quiebras || {};
+    const personMetrics = [
+        ['Nombre completo', persona.nombre_completo],
+        ['Genero', persona.genero],
+        ['Edad', persona.edad],
+        ['Fecha de nacimiento', persona.fecha_nacimiento],
+        ['Localidad', persona.localidad],
+    ].filter(([, value]) => value);
+
+    return (
+        <div className="credix-summary">
+            {personMetrics.length > 0 && (
+                <section className="credix-summary__block">
+                    <h5 className="credix-summary__title">Datos filiatorios</h5>
+                    <div className="credix-summary__grid">
+                        {personMetrics.map(([label, value]) => (
+                            <article className="credix-summary__card" key={label}>
+                                <span>{label}</span>
+                                <strong>{value}</strong>
+                            </article>
+                        ))}
+                    </div>
+                    {persona.domicilio && <p className="credix-summary__note">{persona.domicilio}</p>}
+                </section>
+            )}
+
+            <section className="credix-summary__block">
+                <h5 className="credix-summary__title">Situacion BCRA</h5>
+                <div className="credix-summary__grid">
+                    <article className="credix-summary__card">
+                        <span>Resumen</span>
+                        <strong>{bcra.resumen?.color || 'Sin datos'}</strong>
+                    </article>
+                    <article className="credix-summary__card">
+                        <span>Detalle</span>
+                        <strong>{bcra.resumen?.detalle || 'Sin datos'}</strong>
+                    </article>
+                    <article className="credix-summary__card">
+                        <span>Deuda vigente total</span>
+                        <strong>{bcra.deuda_vigente_total || 'Sin datos'}</strong>
+                    </article>
+                </div>
+                {Array.isArray(bcra.deudas_vigentes) && bcra.deudas_vigentes.length > 0 && (
+                    <div className="result__tableWrap">
+                        <table className="result__table">
+                            <thead>
+                                <tr>
+                                    <th>Entidad</th>
+                                    <th>Periodo</th>
+                                    <th>Monto</th>
+                                    <th>Situacion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bcra.deudas_vigentes.map((row, index) => (
+                                    <tr key={`${row.entidad || 'bcra'}-${index}`}>
+                                        <td>{row.entidad || 'Sin dato'}</td>
+                                        <td>{row.periodo || 'Sin dato'}</td>
+                                        <td>{row.monto || 'Sin dato'}</td>
+                                        <td>{row.situacion || row.porcentaje || 'Sin dato'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="credix-summary__block">
+                <h5 className="credix-summary__title">Situacion previsional</h5>
+                {previsional.mensaje && <p className="credix-summary__note">{previsional.mensaje}</p>}
+                {Array.isArray(previsional.empleadores) && previsional.empleadores.length > 0 ? (
+                    <div className="credix-summary__stack">
+                        {previsional.empleadores.map((employer, index) => (
+                            <article className="credix-summary__card credix-summary__card--wide" key={`${employer.cuit || 'empleador'}-${index}`}>
+                                <span>Empleador {employer.indice || index + 1}</span>
+                                <strong>{employer.nombre || 'Sin dato'}</strong>
+                                <p>{employer.cuit || 'Sin CUIT'}</p>
+                                <p>{employer.actividad || 'Sin actividad'}</p>
+                                <p>{employer.domicilio || 'Sin domicilio'}</p>
+                            </article>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="result__empty">Sin empleadores informados.</p>
+                )}
+            </section>
+
+            <section className="credix-summary__block">
+                <h5 className="credix-summary__title">Aportes</h5>
+                {aportes.mensaje && <p className="credix-summary__note">{aportes.mensaje}</p>}
+                {Array.isArray(aportes.registraciones) && aportes.registraciones.length > 0 && (
+                    <div className="credix-summary__stack">
+                        {aportes.registraciones.map((registration, index) => (
+                            <article className="credix-summary__card credix-summary__card--wide" key={`${registration.periodo || 'registro'}-${index}`}>
+                                <span>{registration.periodo || 'Registracion'}</span>
+                                <strong>{registration.mensaje || 'Sin detalle'}</strong>
+                            </article>
+                        ))}
+                    </div>
+                )}
+                {Array.isArray(aportes.obra_sociales) && aportes.obra_sociales.length > 0 && (
+                    <div className="credix-summary__stack">
+                        {aportes.obra_sociales.map((item, index) => (
+                            <article className="credix-summary__card credix-summary__card--wide" key={`${item.obra_social || 'obra-social'}-${index}`}>
+                                <span>Obra social</span>
+                                <strong>{item.obra_social || item.mensaje || 'Sin datos'}</strong>
+                                {item.situacion_laboral && <p>{item.situacion_laboral}</p>}
+                                {item.empleador && <p>{item.empleador}</p>}
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <section className="credix-summary__block">
+                <h5 className="credix-summary__title">Quiebras</h5>
+                {Array.isArray(quiebras.edictos) && quiebras.edictos.length > 0 ? (
+                    <div className="result__tableWrap">
+                        <table className="result__table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Fuente</th>
+                                    <th>Resumen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {quiebras.edictos.map((edicto, index) => (
+                                    <tr key={`${edicto.fecha || 'edicto'}-${index}`}>
+                                        <td>{edicto.fecha || 'Sin dato'}</td>
+                                        <td>{edicto.fuente || 'Sin dato'}</td>
+                                        <td>{edicto.resumen || 'Sin dato'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <p className="result__empty">{quiebras.mensaje || 'Sin edictos judiciales informados.'}</p>
+                )}
+            </section>
         </div>
     );
 }
@@ -776,6 +931,19 @@ function parseJsonArray(rawValue) {
         return Array.isArray(parsed) ? parsed : [];
     } catch {
         return [];
+    }
+}
+
+function parseJsonObject(rawValue) {
+    if (!rawValue || typeof rawValue !== 'string') {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(rawValue);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+        return null;
     }
 }
 

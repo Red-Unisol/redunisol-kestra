@@ -78,10 +78,130 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
 
         self.assertTrue(output["ok"])
         self.assertEqual(output["status"], "single")
+        self.assertIn('"persona"', output["normalized_json"])
         self.assertEqual(
             output["response_json"],
             '{"status":"single","data":[{"index":1,"title":"Datos Filiatorios","source":"","headers":[],"rows":[["Cuil","20-12345678-3"]],"records":[{"Cuil":"20-12345678-3"}],"text":"Datos Filiatorios Cuil 20-12345678-3"}]}',
         )
+
+    def test_build_output_payload_normalizes_priority_sections(self) -> None:
+        request = SearchRequest(cuit="27364371980", nombre="")
+        result = build_single_result(
+            request,
+            [
+                {
+                    "index": 1,
+                    "title": "Datos Filiatorios",
+                    "source": "",
+                    "headers": [],
+                    "rows": [
+                        ["Datos Filiatorios"],
+                        ["Documento", "36.437.198"],
+                        ["Sexo", "Femenino"],
+                        ["Edad", "34 (07/11/1991)"],
+                        ["Nombre", "VALDEZ MARIANA DEL VALLE"],
+                        ["Domicilio", "60 VIV C 21 - TINOGASTA - TINOGASTA - CATAMARCA"],
+                    ],
+                    "records": [
+                        {"Documento": "36.437.198"},
+                        {"Sexo": "Femenino"},
+                        {"Edad": "34 (07/11/1991)"},
+                        {"Nombre": "VALDEZ MARIANA DEL VALLE"},
+                        {"Domicilio": "60 VIV C 21 - TINOGASTA - TINOGASTA - CATAMARCA"},
+                    ],
+                    "text": "",
+                },
+                {
+                    "index": 2,
+                    "title": "Resumen (*)",
+                    "source": "",
+                    "headers": [],
+                    "rows": [
+                        ["Resumen (*)"],
+                        ["Resumen (*)", "Rojo"],
+                        ["Código: 81079 Detalle (*)", "Situacion Historica ultimos 24 meses en Sistema Financiero (5)"],
+                    ],
+                    "records": [
+                        {"Resumen (*)": "Rojo"},
+                        {"Código: 81079 Detalle (*)": "Situacion Historica ultimos 24 meses en Sistema Financiero (5)"},
+                    ],
+                    "text": "",
+                },
+                {
+                    "index": 3,
+                    "title": "Deudas Vigentes Sistema Financiero Fuente: BCRA",
+                    "source": "BCRA",
+                    "headers": [],
+                    "rows": [
+                        ["Deudas Vigentes Sistema Financiero Fuente: BCRA"],
+                        ["Situación", "Entidad", "Período", "Monto ($)"],
+                        ["1", "100.0%", "BANCO DE LA NACION ARGENTINA", "03 / 2026", "7.371.000", "95.9%"],
+                        ["TARJETA NARANJA S.A.", "03 / 2026", "317.000", "4.1%"],
+                        ["TOTAL Deudas Vigentes", "$ 7.688.000"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+                {
+                    "index": 4,
+                    "title": "Situación Previsional - Empleador 1 (*) Fuente: Afip - Aportes en línea",
+                    "source": "Afip - Aportes en línea",
+                    "headers": [],
+                    "rows": [
+                        ["Situación Previsional - Empleador 1 (*) Fuente: Afip - Aportes en línea"],
+                        ["Empleador", "30-63651135-4 - TESORERIA GENERAL DE LA PROVINCIA"],
+                        ["Actividad", "SERVICIOS GENERALES DE LA ADMINISTRACIÓN PÚBLICA"],
+                        ["Domicilio", "AVENIDA REPUBLICA DE VENEZUELA S/N - SAN FERNANDO DEL VALLE DE CATAMARCA - CATAMARCA"],
+                    ],
+                    "records": [
+                        {"Empleador": "30-63651135-4 - TESORERIA GENERAL DE LA PROVINCIA"},
+                        {"Actividad": "SERVICIOS GENERALES DE LA ADMINISTRACIÓN PÚBLICA"},
+                        {"Domicilio": "AVENIDA REPUBLICA DE VENEZUELA S/N - SAN FERNANDO DEL VALLE DE CATAMARCA - CATAMARCA"},
+                    ],
+                    "text": "",
+                },
+                {
+                    "index": 5,
+                    "title": "Registraciones - Período: 03/2026 al 05/2026 Fuente: Anses en línea",
+                    "source": "Anses en línea",
+                    "headers": [],
+                    "rows": [
+                        ["Registraciones - Período: 03/2026 al 05/2026 Fuente: Anses en línea"],
+                        ["Declaraciones Juradas como Trabajador en Actividad."],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+                {
+                    "index": 6,
+                    "title": "Edictos judiciales",
+                    "source": "",
+                    "headers": [],
+                    "rows": [
+                        ["Edictos judiciales"],
+                        ["20/02/2017", "B.O. Santa Fe", "", "Resumen del edicto"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+            ],
+            cuit="27364371980",
+            nombre="VALDEZ MARIANA DEL VALLE",
+        )
+
+        output = build_output_payload(result)
+        normalized = json.loads(output["normalized_json"])
+
+        self.assertEqual(normalized["persona"]["nombre_completo"], "VALDEZ MARIANA DEL VALLE")
+        self.assertEqual(normalized["persona"]["edad"], "34")
+        self.assertEqual(normalized["persona"]["fecha_nacimiento"], "07/11/1991")
+        self.assertEqual(normalized["persona"]["localidad"], "TINOGASTA")
+        self.assertEqual(normalized["bcra"]["resumen"]["color"], "Rojo")
+        self.assertEqual(normalized["bcra"]["deuda_vigente_total"], "$ 7.688.000")
+        self.assertEqual(normalized["bcra"]["deudas_vigentes"][0]["entidad"], "BANCO DE LA NACION ARGENTINA")
+        self.assertEqual(normalized["previsional"]["empleadores"][0]["cuit"], "30636511354")
+        self.assertEqual(normalized["aportes"]["registraciones"][0]["periodo"], "03/2026 al 05/2026")
+        self.assertEqual(normalized["quiebras"]["edictos"][0]["fuente"], "B.O. Santa Fe")
 
     def test_normalize_report_section_builds_key_value_records(self) -> None:
         section = _normalize_report_section(

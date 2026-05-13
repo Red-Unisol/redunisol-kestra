@@ -565,6 +565,70 @@ input {
     gap: 14px;
 }
 
+.credix-summary {
+    display: grid;
+    gap: 18px;
+}
+
+.credix-summary__block {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.52);
+}
+
+.credix-summary__title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.credix-summary__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.credix-summary__stack {
+    display: grid;
+    gap: 12px;
+}
+
+.credix-summary__card {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.credix-summary__card span {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.credix-summary__card strong {
+    font-size: 0.94rem;
+    line-height: 1.4;
+}
+
+.credix-summary__card p,
+.credix-summary__note {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 0.88rem;
+}
+
+.credix-summary__card--wide {
+    align-items: flex-start;
+}
+
 .result__subheading {
     margin: 0;
     font-size: 0.92rem;
@@ -625,7 +689,8 @@ input {
 
 @media (max-width: 980px) {
     .catalog__grid,
-    .result__grid {
+    .result__grid,
+    .credix-summary__grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -662,7 +727,8 @@ input {
     }
 
     .catalog__grid,
-    .result__grid {
+    .result__grid,
+    .credix-summary__grid {
         grid-template-columns: 1fr;
     }
 
