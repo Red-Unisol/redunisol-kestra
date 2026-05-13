@@ -1,0 +1,2653 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "F API",
+    "description": "",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/auth/login_user": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequestUser"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequestUser"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequestUser"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequestUser"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Empresa/Evaluate": {
+      "get": {
+        "tags": [
+          "Empresa"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Empresa/EvaluateObj": {
+      "post": {
+        "tags": [
+          "Empresa"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Empresa/EvaluateList": {
+      "post": {
+        "tags": [
+          "Empresa"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/prestamosliquidadosshp": {
+      "get": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "parameters": [
+          {
+            "name": "fechadesde",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/PrestamoLiquidado/{idShp}": {
+      "get": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "parameters": [
+          {
+            "name": "idShp",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/DatosPrestamo/{idShp}": {
+      "get": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "parameters": [
+          {
+            "name": "idShp",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/LoginSSCM": {
+      "post": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginSSCMModel"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginSSCMModel"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginSSCMModel"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginSSCMModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/testSSCM": {
+      "post": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/eiv/DesarrolloCuotaPrestamo/{idShp}": {
+      "get": {
+        "tags": [
+          "InformacionPrestamos"
+        ],
+        "parameters": [
+          {
+            "name": "idShp",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/prestamos/{SocioId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "summary": "Consulta los préstamos de un socio",
+        "description": "Obtiene la lista de préstamos asociados a un socio específico",
+        "operationId": "ConsultaPrestamos",
+        "parameters": [
+          {
+            "name": "SocioId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prestamos/detalle/{PrestamoID}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "summary": "Consulta las cuotas de un prestamo",
+        "description": "Obtiene la lista de cuotas de un prestamo",
+        "operationId": "ConsultaPrestamos",
+        "parameters": [
+          {
+            "name": "PrestamoID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoDetalleResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoDetalleResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPrestamoDetalleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/prestamos/pago/{CuotaID}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "summary": "retorna los pdf de un pago",
+        "description": "Obtiene la lista de reportes de un pago",
+        "operationId": "ConsultaPago",
+        "parameters": [
+          {
+            "name": "CuotaID",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPDFResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPDFResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPDFResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lead/confirmacion": {
+      "patch": {
+        "tags": [
+          "SimuladorLead"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacionRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/lotes/encuadre": {
+      "post": {
+        "tags": [
+          "SimuladorLead"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/lead/simulacion": {
+      "get": {
+        "tags": [
+          "SimuladorLead"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulacionRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulacionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulacionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulacionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/lead/info": {
+      "get": {
+        "tags": [
+          "SimuladorLead"
+        ],
+        "parameters": [
+          {
+            "name": "IdLead",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idleadhash",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": [
+          "Socio"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/parametros"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/parametros"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/parametros"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/parametros"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AMTRequest": {
+        "type": "object",
+        "properties": {
+          "cuenta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capital": {
+            "type": "number",
+            "format": "double"
+          },
+          "sociotitular": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "socio2": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "socio3": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "socio4": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plazo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idTipoCuentaAMT": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "renovacion": {
+            "$ref": "#/components/schemas/RenovacionAMT"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AltaMetaModel": {
+        "type": "object",
+        "properties": {
+          "esPep": {
+            "type": "boolean"
+          },
+          "vinculoPep": {
+            "type": "string",
+            "nullable": true
+          },
+          "cargoPep": {
+            "type": "string",
+            "nullable": true
+          },
+          "esSujetoObligadoRaw": {
+            "nullable": true
+          },
+          "tipoSujetoObligado": {
+            "$ref": "#/components/schemas/TipoSujetoObligadoInfo"
+          },
+          "esSujetoObligado": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AltaRequModel": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "apellido": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "dni": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "telefono": {
+            "type": "string",
+            "nullable": true
+          },
+          "domicilio": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuil": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sexo": {
+            "type": "string",
+            "nullable": true
+          },
+          "tramite": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nacimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "back": {
+            "type": "string",
+            "nullable": true
+          },
+          "front": {
+            "type": "string",
+            "nullable": true
+          },
+          "selfie": {
+            "type": "string",
+            "nullable": true
+          },
+          "docPhoto": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AmvReq": {
+        "type": "object",
+        "properties": {
+          "cuenta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnticipoAMTReq": {
+        "type": "object",
+        "properties": {
+          "nro_amt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "monto_aretirar": {
+            "type": "number",
+            "format": "double"
+          },
+          "nro_cuenta_ahorro": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idTipoMovimiento": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AsientoRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AsignarReferenciaRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "id_referencia": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BicaConsultaCuentaSocioRequestModel": {
+        "type": "object",
+        "properties": {
+          "cuit": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BicaNotificarFinalizacionRequestModel": {
+        "type": "object",
+        "properties": {
+          "cuit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "estado": {
+            "type": "boolean"
+          },
+          "cuenta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "origen": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelCardRequestModel": {
+        "type": "object",
+        "properties": {
+          "nro_autorizacion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConciliacionTransaccionesRequest": {
+        "type": "object",
+        "properties": {
+          "fechaDesde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fechaHasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "registrosPorPagina": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmacionRequest": {
+        "type": "object",
+        "properties": {
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "calle": {
+            "type": "string",
+            "nullable": true
+          },
+          "nropuerta": {
+            "type": "string",
+            "nullable": true
+          },
+          "pisodpto": {
+            "type": "string",
+            "nullable": true
+          },
+          "localidad": {
+            "$ref": "#/components/schemas/ObjectLocation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Cotitular": {
+        "type": "object",
+        "properties": {
+          "tipoDocumento": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroDocumento": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CrearCuentaAMVRequest": {
+        "type": "object",
+        "properties": {
+          "idTipoCuentaAMV": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "integrantes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetalleCuentaAMV"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetalleCuentaAMV": {
+        "type": "object",
+        "properties": {
+          "idSocio": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "relacion": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeudaPrestamo": {
+        "type": "object",
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          },
+          "idCuota": {
+            "type": "string",
+            "nullable": true
+          },
+          "idCobrador": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "idCuentaAmv": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EncuadreLead": {
+        "type": "object",
+        "properties": {
+          "apellidoPersona": {
+            "type": "string",
+            "nullable": true
+          },
+          "celularInformativo": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentoPersona": {
+            "type": "string",
+            "nullable": true
+          },
+          "encuadreLeadId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fechaNacimiento": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "leadIncluido": {
+            "type": "boolean"
+          },
+          "listOfertas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Oferta"
+            },
+            "nullable": true
+          },
+          "mailInformativo": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombrePersona": {
+            "type": "string",
+            "nullable": true
+          },
+          "scoreCrediticio": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sexoPersona": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "tem": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "tna": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "encuadreLeadIdHash": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FAPIRequirement": {
+        "type": "object",
+        "properties": {
+          "metodo": {
+            "type": "string",
+            "nullable": true
+          },
+          "parametros": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Gmov": {
+        "type": "object",
+        "properties": {
+          "cuitMutual": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "numeroCuenta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "codigoMovimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoMovimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "numeroMovimiento": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fechaMovimiento": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Gmov2": {
+        "type": "object",
+        "properties": {
+          "cuitMutual": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "numeroCuenta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "codigoMovimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoMovimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "numeroMovimiento": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fechaMovimiento": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          },
+          "divisa": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InfoSimulacion": {
+        "type": "object",
+        "properties": {
+          "valor_prestamo": {
+            "type": "string",
+            "nullable": true
+          },
+          "meses": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuota": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "dni": {
+            "type": "string",
+            "nullable": true
+          },
+          "telefono": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InformarAltaCuentaRequest": {
+        "type": "object",
+        "properties": {
+          "tipoDocumento": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroDocumento": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoCuit": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroCuit": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "producto": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuenta": {
+            "type": "string",
+            "nullable": true
+          },
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuentaMutual": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InformarCreacionCVUrequest": {
+        "type": "object",
+        "properties": {
+          "idNovedad": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "numeroCuenta": {
+            "type": "string",
+            "nullable": true
+          },
+          "cvu": {
+            "type": "string",
+            "nullable": true
+          },
+          "moneda": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idEstado": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accion": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaSolicitud": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fechaBaja": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InformarDepModelReq": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "nro_cajaahorro": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "banco": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "fecha": {
+            "type": "string",
+            "nullable": true
+          },
+          "comprobante": {
+            "type": "string",
+            "format": "byte",
+            "nullable": true
+          },
+          "referencia": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "required": [
+          "commerce_cuit",
+          "commerce_password"
+        ],
+        "type": "object",
+        "properties": {
+          "commerce_cuit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "commerce_password": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginRequestUser": {
+        "required": [
+          "user_name",
+          "user_password"
+        ],
+        "type": "object",
+        "properties": {
+          "user_name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "user_password": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginSSCMModel": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Lote": {
+        "type": "object",
+        "properties": {
+          "codigoLinea": {
+            "type": "string",
+            "nullable": true
+          },
+          "codigoProductoCore": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaExpiracion": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "loteId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "montoMaximoLoteCampana": {
+            "type": "number",
+            "format": "double"
+          },
+          "tem": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "tna": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoteRequest": {
+        "type": "object",
+        "properties": {
+          "encuadresLeads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EncuadreLead"
+            },
+            "nullable": true
+          },
+          "lote": {
+            "$ref": "#/components/schemas/Lote"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MetaMapReqModel": {
+        "type": "object",
+        "properties": {
+          "eventName": {
+            "type": "string",
+            "nullable": true
+          },
+          "flowId": {
+            "type": "string",
+            "nullable": true
+          },
+          "identityStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/MetadataReqMod"
+          },
+          "resource": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MetadataReqMod": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ModificarAliasRequest": {
+        "type": "object",
+        "properties": {
+          "cvu": {
+            "type": "string",
+            "nullable": true
+          },
+          "alias": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MovBicaAgil": {
+        "type": "object",
+        "properties": {
+          "idMovimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operationGroupld": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombreOperacion": {
+            "type": "string",
+            "nullable": true
+          },
+          "conceptoDescripcion": {
+            "type": "string",
+            "nullable": true
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          },
+          "cuentaDebito": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuentaCredito": {
+            "type": "string",
+            "nullable": true
+          },
+          "idSuscriptor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "codigoTransaccion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NuevoAMTReq": {
+        "type": "object",
+        "properties": {
+          "nroSocio": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cuenta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capital": {
+            "type": "number",
+            "format": "double"
+          },
+          "sociotitular": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plazo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sociosAdicionales": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "idTipoMovimiento": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tasa": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "idTipoCuentaAMT": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "renovacion": {
+            "$ref": "#/components/schemas/RenovacionAMT"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ObjectLocation": {
+        "type": "object",
+        "properties": {
+          "locationid": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stateKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "zipCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "synonymous": {
+            "type": "string",
+            "nullable": true
+          },
+          "riskZoneTypeCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ObtenerCuentaMutualRequest": {
+        "type": "object",
+        "properties": {
+          "tipoDocumento": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroDocumento": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoCuit": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroCuit": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "nroCuentaEnPesos": {
+            "type": "string",
+            "nullable": true
+          },
+          "cotitulares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Cotitular"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Oferta": {
+        "type": "object",
+        "properties": {
+          "cuotas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "montoAprobado": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PagarCuotaPrestamoModelReq": {
+        "type": "object",
+        "properties": {
+          "idPrestamo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "monto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nroCajaAhorro": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nroCuota": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PagarTarjetaModelReq": {
+        "type": "object",
+        "properties": {
+          "monto": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "nroCajaAhorro": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nroCuenta": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "nota": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PagoAMTReq": {
+        "type": "object",
+        "properties": {
+          "nro_amt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nro_cuenta_ahorro": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idTipoMovimiento": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "interes_adicional": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PagoResumenRequest": {
+        "type": "object",
+        "properties": {
+          "resumen": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cuentaAMV": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalIntegranteCuenta": {
+        "type": "object",
+        "properties": {
+          "nombreCompleto": {
+            "type": "string",
+            "nullable": true
+          },
+          "socioId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "relacion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalPDFResponse": {
+        "type": "object",
+        "properties": {
+          "reportesPDF": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalPrestamoDetalleItem": {
+        "type": "object",
+        "properties": {
+          "cuotaID": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nroCuota": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "estado": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaVto": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capital": {
+            "type": "number",
+            "format": "double"
+          },
+          "interes": {
+            "type": "number",
+            "format": "double"
+          },
+          "interesCompPun": {
+            "type": "number",
+            "format": "double"
+          },
+          "interesCompensatorios": {
+            "type": "number",
+            "format": "double"
+          },
+          "interesPunitorios": {
+            "type": "number",
+            "format": "double"
+          },
+          "otros": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "fechaPago": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalPrestamoDetalleResponse": {
+        "type": "object",
+        "properties": {
+          "cuotas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalPrestamoDetalleItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalPrestamoItem": {
+        "type": "object",
+        "properties": {
+          "integrantes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalIntegranteCuenta"
+            },
+            "nullable": true
+          },
+          "nroPrestamo": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "prestamoID": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "estado": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipoGarantia": {
+            "type": "string",
+            "nullable": true
+          },
+          "miembros": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaLiquidacion": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capital": {
+            "type": "number",
+            "format": "double"
+          },
+          "saldoCapital": {
+            "type": "number",
+            "format": "double"
+          },
+          "cuotas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cuotasCanceladas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fechaVtoPxmaCuota": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tna": {
+            "type": "number",
+            "format": "double"
+          },
+          "cft": {
+            "type": "number",
+            "format": "double"
+          },
+          "moneda": {
+            "type": "string",
+            "nullable": true
+          },
+          "lineaId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lineaNombre": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortalPrestamoResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalPrestamoItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PostRequest": {
+        "type": "object",
+        "properties": {
+          "comercio_nro": {
+            "type": "string",
+            "nullable": true
+          },
+          "tarjeta_nro": {
+            "type": "string",
+            "nullable": true
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "cuotas": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "QueryRequest": {
+        "type": "object",
+        "properties": {
+          "cmd": {
+            "type": "string",
+            "nullable": true
+          },
+          "tipo": {
+            "type": "string",
+            "nullable": true
+          },
+          "campos": {
+            "type": "string",
+            "nullable": true
+          },
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "opciones": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RPARequest": {
+        "type": "object",
+        "properties": {
+          "cuit_mutual": {
+            "type": "string",
+            "nullable": true
+          },
+          "linea": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cuenta": {
+            "type": "string",
+            "nullable": true
+          },
+          "numero_documento": {
+            "type": "string",
+            "nullable": true
+          },
+          "importe_liquido": {
+            "type": "number",
+            "format": "double"
+          },
+          "importe_total": {
+            "type": "number",
+            "format": "double"
+          },
+          "divisa": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cantidad_cuotas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "margen_disponible": {
+            "type": "number",
+            "format": "double"
+          },
+          "concepto": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RefinanciacionRequest": {
+        "type": "object",
+        "properties": {
+          "plastico": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "cuotas": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idTipoMovimientoAMV": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "idCuentaAMV": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "generaAsiento": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "operacion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenovacionAMT": {
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "RenovarAMTReq": {
+        "type": "object",
+        "properties": {
+          "nro_amt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nro_cuenta_ahorro": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idTipoMovimiento": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "agrega_Retira": {
+            "type": "number",
+            "format": "double"
+          },
+          "plazo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "interes_adicional": {
+            "type": "number",
+            "format": "double"
+          },
+          "idTipoMovimientoLiq": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tasa": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "renovacion": {
+            "$ref": "#/components/schemas/RenovacionAMT"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SimulacionRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "SolicitarTransferenciaModelReq": {
+        "type": "object",
+        "properties": {
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "cta_destino": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SolicitudTurnoDTO": {
+        "type": "object",
+        "properties": {
+          "dni": {
+            "type": "string",
+            "nullable": true
+          },
+          "tramiteId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "macAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "apellido": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TipoSujetoObligadoInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "descripcion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransaccionCuentaContraparte": {
+        "type": "object",
+        "properties": {
+          "cuentaContraparte": {
+            "type": "string",
+            "nullable": true
+          },
+          "cuitContraparte": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "titularContraparte": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Transacciones": {
+        "type": "object",
+        "properties": {
+          "idTransaccion": {
+            "type": "string",
+            "nullable": true
+          },
+          "idTransaccionAnulada": {
+            "type": "string",
+            "nullable": true
+          },
+          "idTransaccionOriginante": {
+            "type": "string",
+            "nullable": true
+          },
+          "idTransaccionEntidad": {
+            "type": "string",
+            "nullable": true
+          },
+          "idEntidad": {
+            "type": "string",
+            "nullable": true
+          },
+          "idTipoTransaccion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idWebOperacion": {
+            "type": "string",
+            "nullable": true
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "idMoneda": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fechaOperacion": {
+            "type": "string",
+            "nullable": true
+          },
+          "fechaContable": {
+            "type": "string",
+            "nullable": true
+          },
+          "observaciones": {
+            "type": "string",
+            "nullable": true
+          },
+          "numeroCuenta": {
+            "type": "string",
+            "nullable": true
+          },
+          "cvu": {
+            "type": "string",
+            "nullable": true
+          },
+          "impuestos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/impuestos"
+            },
+            "nullable": true
+          },
+          "transaccionCuentaContraparte": {
+            "$ref": "#/components/schemas/TransaccionCuentaContraparte"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferMolRequest": {
+        "type": "object",
+        "properties": {
+          "cta_origen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cta_destino": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransferenciaModelMOL": {
+        "type": "object",
+        "properties": {
+          "cuentaTarjeta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cuentaAMV": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TyCMetaMapModel": {
+        "type": "object",
+        "properties": {
+          "termsAndConditions": {
+            "type": "string",
+            "nullable": true
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "pep": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidacionClienteRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "numero": {
+            "type": "string",
+            "nullable": true
+          },
+          "codigoArea": {
+            "type": "string",
+            "nullable": true
+          },
+          "codigoPais": {
+            "type": "string",
+            "nullable": true
+          },
+          "dni": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tipoDoc": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WapiFirmaWebhookData": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/WebhookDocumentData"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebhookDocumentData": {
+        "type": "object",
+        "properties": {
+          "idSeguimiento": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isFinished": {
+            "type": "boolean"
+          },
+          "finishedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "customParameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          },
+          "reportUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WhatsAppModel": {
+        "type": "object",
+        "properties": {
+          "cuenta_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "menu_item": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "telefono": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "altamodel": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AltaRequModel"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AltaMetaModel"
+          }
+        },
+        "additionalProperties": false
+      },
+      "impuestos": {
+        "type": "object",
+        "properties": {
+          "idTransaccion": {
+            "type": "string",
+            "nullable": true
+          },
+          "importe": {
+            "type": "number",
+            "format": "double"
+          },
+          "idTipoTransaccion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tipoImporte": {
+            "type": "string",
+            "nullable": true
+          },
+          "idTipoImporte": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "nroFactRequestModel": {
+        "type": "object",
+        "properties": {
+          "nro_aut": {
+            "type": "string",
+            "nullable": true
+          },
+          "nro_fact": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "parametros": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "transferRequest": {
+        "type": "object",
+        "properties": {
+          "nro_cuenta_origen": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nro_cuenta_destino": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monto": {
+            "type": "number",
+            "format": "double"
+          },
+          "motivo": {
+            "type": "string",
+            "nullable": true
+          },
+          "id_tipo_debito": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id_tipo_credito": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "transferResponseMol": {
+        "type": "object",
+        "properties": {
+          "mov_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mov_id_destino": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fecha": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "apiKey",
+        "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        "name": "Authorization",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ]
+}

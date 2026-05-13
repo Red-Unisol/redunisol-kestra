@@ -24,6 +24,7 @@ La capa Git-managed es la que debe crecer de ahora en adelante.
 
 ```text
 apps/
+  exportador-bancor/
   metamap-platform/
 
 kestra/
@@ -91,6 +92,7 @@ Reserva espacio para aplicaciones o servicios que no corren dentro de Kestra com
 
 Ejemplo actual:
 
+- `apps/exportador-bancor/`: utilidad operativa Python para generar exports ARC Bancor con CLI, GUI y build local a `.exe`
 - `apps/metamap-platform/server/`: backend inicial de ingest y consulta de validaciones MetaMap persistidas en SQL
 
 ### `web/`

@@ -20,7 +20,10 @@ use crate::{
     coinag_client::{CoinagClient, TransferLookupResponse},
     config::AppConfig,
     core_client::CoreClient,
-    models::{CoinagTransferGuard, CoreSnapshot, HydratedCase, MetamapSnapshot, ValidationReport},
+    models::{
+        CoinagTransferGuard, CoreSnapshot, HydratedCase, MetamapSnapshot, TransferAmountOutcome,
+        ValidationReport,
+    },
     receipt,
     server_client::ServerClient,
     validation,
@@ -225,12 +228,12 @@ impl TransferenciasApp {
                 let can_lookup = self.services.transfer_enabled()
                     && !self.transfer_lookup.loading
                     && !self.transfer_lookup.request_number.trim().is_empty();
-                let submit = response.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+                let submit =
+                    response.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
 
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    let button =
-                        ui.add_enabled(can_lookup, egui::Button::new("Consultar"));
+                    let button = ui.add_enabled(can_lookup, egui::Button::new("Consultar"));
                     if button.clicked() || (can_lookup && submit) {
                         request_to_lookup =
                             Some(self.transfer_lookup.request_number.trim().to_owned());
@@ -428,8 +431,7 @@ impl eframe::App for TransferenciasApp {
                     self.transfer_lookup.open = true;
                 }
                 if !self.services.transfer_enabled() {
-                    lookup_button
-                        .on_hover_text("Coinag no esta configurado en este runtime.");
+                    lookup_button.on_hover_text("Coinag no esta configurado en este runtime.");
                 }
                 ui.checkbox(&mut self.show_disabled_lines, "Mostrar deshabilitadas");
             });
@@ -552,7 +554,31 @@ impl eframe::App for TransferenciasApp {
                                 ui.label(item.core_amount_display());
                             });
                             row.col(|ui| {
-                                ui.label(item.core.request_status.as_deref().unwrap_or("N/D"));
+                                let resolution = item.transfer_amount_resolution();
+                                let color = if !matches!(
+                                    item.core.request_status.as_deref(),
+                                    Some("A Transferir")
+                                ) || matches!(
+                                    resolution.outcome,
+                                    TransferAmountOutcome::Error
+                                ) {
+                                    Color32::from_rgb(170, 30, 30)
+                                } else if matches!(
+                                    resolution.outcome,
+                                    TransferAmountOutcome::Renovacion
+                                ) {
+                                    Color32::from_rgb(176, 113, 0)
+                                } else {
+                                    Color32::LIGHT_GRAY
+                                };
+                                let response = ui.label(
+                                    RichText::new(item.transfer_state_display()).color(color),
+                                );
+                                if let Some(detail) = resolution.detail.as_deref() {
+                                    if !matches!(resolution.outcome, TransferAmountOutcome::Exact) {
+                                        response.on_hover_text(detail);
+                                    }
+                                }
                             });
                             row.col(|ui| {
                                 ui.vertical(|ui| {
@@ -656,6 +682,22 @@ struct TransferLookupResult {
 
 impl TransferConfirmation {
     fn for_case(item: &HydratedCase) -> Self {
+        let resolution = item.transfer_amount_resolution();
+        let mut warning_lines = Vec::new();
+        if !item.server_validation.has_completed_validation() {
+            warning_lines.push(
+                "Advertencia: no existe validacion MetaMap completed asociada en el server."
+                    .to_owned(),
+            );
+        }
+        if matches!(resolution.outcome, TransferAmountOutcome::Renovacion) {
+            warning_lines.push(format!(
+                "NOTA: EL MONTO QUE SE VA A TRANSFERIR ({}) ES MENOR QUE EL MONTO DE LA SOLICITUD ({}). SE AUTODETECTO COMO RENOVACION.",
+                item.transfer_amount_display(),
+                item.core_amount_display(),
+            ));
+        }
+
         Self {
             request_oid: item.request_oid().to_owned(),
             message: "Desea transferir esta solicitud?".to_owned(),
@@ -666,16 +708,17 @@ impl TransferConfirmation {
                     "LINEA".to_owned(),
                     display_credit_line(item.core.credit_line_description.as_deref()),
                 ),
-                ("MONTO".to_owned(), item.amount_display()),
+                ("MONTO SOLICITUD".to_owned(), item.core_amount_display()),
+                (
+                    "MONTO A TRANSFERIR".to_owned(),
+                    item.transfer_amount_display(),
+                ),
                 ("CBU".to_owned(), item.cbu_display()),
             ],
-            warning_message: if item.server_validation.has_completed_validation() {
+            warning_message: if warning_lines.is_empty() {
                 None
             } else {
-                Some(
-                    "Advertencia: no existe validacion MetaMap completed asociada en el server."
-                        .to_owned(),
-                )
+                Some(warning_lines.join("\n"))
             },
         }
     }
@@ -790,7 +833,10 @@ impl AppServices {
         coinag.build_available_balance_text()
     }
 
-    fn lookup_transfer_by_request_number(&self, request_number: &str) -> Result<TransferLookupResult> {
+    fn lookup_transfer_by_request_number(
+        &self,
+        request_number: &str,
+    ) -> Result<TransferLookupResult> {
         let coinag = self
             .coinag
             .as_ref()
@@ -1319,7 +1365,10 @@ mod tests {
         let merged = preserve_busy_items(&current_items, loaded_items);
 
         assert!(merged[0].busy);
-        assert_eq!(merged[0].message.as_deref(), Some(TRANSFER_PROCESSING_MESSAGE));
+        assert_eq!(
+            merged[0].message.as_deref(),
+            Some(TRANSFER_PROCESSING_MESSAGE)
+        );
     }
 
     #[test]
@@ -1371,7 +1420,9 @@ fn display_credit_line(value: Option<&str>) -> String {
         .to_owned()
 }
 
-fn build_transfer_lookup_summary_fields(response: &TransferLookupResponse) -> Vec<(String, String)> {
+fn build_transfer_lookup_summary_fields(
+    response: &TransferLookupResponse,
+) -> Vec<(String, String)> {
     let root = response.body.get("response").unwrap_or(&response.body);
     let mut fields = vec![
         ("Solicitud".to_owned(), response.request_number.clone()),

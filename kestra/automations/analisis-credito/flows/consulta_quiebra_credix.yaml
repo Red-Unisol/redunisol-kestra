@@ -1,7 +1,7 @@
 id: consulta_quiebra_credix
 namespace: redunisol
 
-description: Consulta CredixSA y devuelve el estado none, multiple o single segun la tabla intermedia de resultados.
+description: Consulta CredixSA, refresca datos online cuando corresponde y devuelve el informe disponible por secciones.
 
 labels:
   env: prod
@@ -11,6 +11,32 @@ labels:
   integration: credixsa
 
 tasks:
+  - id: preparar_cache
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+      include:
+        - consulta_quiebra_credix/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: ghcr.io/kestra-io/pydata:latest
+    beforeCommands:
+      - pip install kestra > /dev/null
+    env:
+      TRIGGER_BODY_JSON: "{{ trigger.body | json }}"
+    commands:
+      - python -m consulta_quiebra_credix.cache_lookup_entrypoint
+
+  - id: leer_cache_cuil
+    type: io.kestra.plugin.core.kv.Get
+    key: "{{ outputs.preparar_cache.vars.cuil_cache_lookup_key }}"
+    errorOnMissing: false
+
+  - id: leer_cache_nombre
+    type: io.kestra.plugin.core.kv.Get
+    key: "{{ outputs.preparar_cache.vars.name_cache_lookup_key }}"
+    errorOnMissing: false
+
   - id: consultar_quiebra
     type: io.kestra.plugin.scripts.python.Commands
     namespaceFiles:
@@ -30,8 +56,29 @@ tasks:
       CREDIX_CLIENTE: "{{ secret('CREDIX_CLIENTE') }}"
       CREDIX_USER: "{{ secret('CREDIX_USER') }}"
       CREDIX_PASS: "{{ secret('CREDIX_PASS') }}"
+      CREDIX_CACHE_BY_CUIL_JSON: "{{ (outputs.leer_cache_cuil.value ?? null) | json }}"
+      CREDIX_CACHE_BY_NAME_JSON: "{{ (outputs.leer_cache_nombre.value ?? null) | json }}"
+      CREDIX_CACHE_MAX_AGE_DAYS: "7"
     commands:
       - python -m consulta_quiebra_credix.kestra_webhook_entrypoint
+
+  - id: guardar_cache_cuil
+    type: io.kestra.plugin.core.kv.Set
+    runIf: "{{ outputs.consultar_quiebra.vars.cuil_cache_should_persist }}"
+    key: "{{ outputs.consultar_quiebra.vars.cuil_cache_key }}"
+    value: "{{ outputs.consultar_quiebra.vars.cache_value_json }}"
+    kvType: JSON
+    overwrite: true
+    ttl: "{{ outputs.consultar_quiebra.vars.cache_ttl }}"
+
+  - id: guardar_cache_nombre
+    type: io.kestra.plugin.core.kv.Set
+    runIf: "{{ outputs.consultar_quiebra.vars.name_cache_should_persist }}"
+    key: "{{ outputs.consultar_quiebra.vars.name_cache_key }}"
+    value: "{{ outputs.consultar_quiebra.vars.cache_value_json }}"
+    kvType: JSON
+    overwrite: true
+    ttl: "{{ outputs.consultar_quiebra.vars.cache_ttl }}"
 
 outputs:
   - id: ok
@@ -58,6 +105,12 @@ outputs:
   - id: error
     type: STRING
     value: "{{ outputs.consultar_quiebra.vars.error }}"
+  - id: cache_hit
+    type: BOOLEAN
+    value: "{{ outputs.consultar_quiebra.vars.cache_hit }}"
+  - id: cached_at
+    type: STRING
+    value: "{{ outputs.consultar_quiebra.vars.cached_at }}"
 
 triggers:
   - id: webhook

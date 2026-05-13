@@ -47,8 +47,43 @@ pub struct CoreSnapshot {
     pub request_cuil: Option<String>,
     pub document_cuil: Option<String>,
     pub transfer_cbu: Option<String>,
+    pub bank_cmf_amount_raw: Option<String>,
+    pub bank_cmf_amount: Option<Decimal>,
+    pub bank_coinag_cba_amount_raw: Option<String>,
+    pub bank_coinag_cba_amount: Option<Decimal>,
     pub coinag_cuil: Option<String>,
     pub refreshed_label: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BankAmountField {
+    BcoCmf,
+    BcoCoinagCba,
+}
+
+impl BankAmountField {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::BcoCmf => "Prestamo.[Bco CMF]",
+            Self::BcoCoinagCba => "Prestamo.[Bco Coinag Cba]",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TransferAmountOutcome {
+    Exact,
+    Renovacion,
+    Error,
+}
+
+#[derive(Clone, Debug)]
+pub struct TransferAmountResolution {
+    pub outcome: TransferAmountOutcome,
+    pub bank_field: Option<BankAmountField>,
+    pub transfer_amount: Option<Decimal>,
+    pub request_amount: Option<Decimal>,
+    pub detail: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -65,7 +100,9 @@ pub enum CoinagTransferGuard {
     NotFound,
     YaTransferida,
     EnProceso,
-    Error { detail: String },
+    Error {
+        detail: String,
+    },
 }
 
 impl CoinagTransferGuard {
@@ -229,5 +266,122 @@ impl HydratedCase {
             .map(crate::validation::format_money)
             .or_else(|| self.core.request_amount_raw.clone())
             .unwrap_or_else(|| "N/D".to_owned())
+    }
+
+    pub fn transfer_amount_resolution(&self) -> TransferAmountResolution {
+        self.core.transfer_amount_resolution()
+    }
+
+    pub fn transfer_amount_display(&self) -> String {
+        self.transfer_amount_resolution()
+            .transfer_amount
+            .map(crate::validation::format_money)
+            .unwrap_or_else(|| "N/D".to_owned())
+    }
+
+    pub fn transfer_state_display(&self) -> String {
+        if !matches!(self.core.request_status.as_deref(), Some("A Transferir")) {
+            return self
+                .core
+                .request_status
+                .clone()
+                .unwrap_or_else(|| "N/D".to_owned());
+        }
+        match self.transfer_amount_resolution().outcome {
+            TransferAmountOutcome::Exact => "A Transferir".to_owned(),
+            TransferAmountOutcome::Renovacion => "RENOVACION".to_owned(),
+            TransferAmountOutcome::Error => "ERROR".to_owned(),
+        }
+    }
+}
+
+impl CoreSnapshot {
+    pub fn transfer_amount_resolution(&self) -> TransferAmountResolution {
+        let zero = Decimal::ZERO;
+        let bank_cmf_amount = self.bank_cmf_amount.filter(|amount| *amount > zero);
+        let bank_coinag_cba_amount = self.bank_coinag_cba_amount.filter(|amount| *amount > zero);
+
+        match (bank_cmf_amount, bank_coinag_cba_amount) {
+            (Some(_), Some(_)) => TransferAmountResolution {
+                outcome: TransferAmountOutcome::Error,
+                bank_field: None,
+                transfer_amount: None,
+                request_amount: self.request_amount,
+                detail: Some(
+                    "Monto bancario inconsistente: Prestamo.[Bco CMF] y Prestamo.[Bco Coinag Cba] son mayores a cero."
+                        .to_owned(),
+                ),
+            },
+            (None, None) => TransferAmountResolution {
+                outcome: TransferAmountOutcome::Error,
+                bank_field: None,
+                transfer_amount: None,
+                request_amount: self.request_amount,
+                detail: Some(
+                    "No se pudo resolver el monto bancario: ni Prestamo.[Bco CMF] ni Prestamo.[Bco Coinag Cba] son mayores a cero."
+                        .to_owned(),
+                ),
+            },
+            (Some(amount), None) => {
+                self.resolve_transfer_amount(BankAmountField::BcoCmf, amount)
+            }
+            (None, Some(amount)) => {
+                self.resolve_transfer_amount(BankAmountField::BcoCoinagCba, amount)
+            }
+        }
+    }
+
+    fn resolve_transfer_amount(
+        &self,
+        bank_field: BankAmountField,
+        transfer_amount: Decimal,
+    ) -> TransferAmountResolution {
+        let Some(request_amount) = self.request_amount else {
+            return TransferAmountResolution {
+                outcome: TransferAmountOutcome::Error,
+                bank_field: Some(bank_field),
+                transfer_amount: Some(transfer_amount),
+                request_amount: None,
+                detail: Some(
+                    "No se pudo resolver MontoAFinanciar en el core financiero.".to_owned(),
+                ),
+            };
+        };
+
+        if transfer_amount > request_amount {
+            return TransferAmountResolution {
+                outcome: TransferAmountOutcome::Error,
+                bank_field: Some(bank_field),
+                transfer_amount: Some(transfer_amount),
+                request_amount: Some(request_amount),
+                detail: Some(format!(
+                    "Monto bancario mayor que MontoAFinanciar: banco {}, solicitud {}.",
+                    crate::validation::format_money(transfer_amount),
+                    crate::validation::format_money(request_amount),
+                )),
+            };
+        }
+
+        if transfer_amount < request_amount {
+            return TransferAmountResolution {
+                outcome: TransferAmountOutcome::Renovacion,
+                bank_field: Some(bank_field),
+                transfer_amount: Some(transfer_amount),
+                request_amount: Some(request_amount),
+                detail: Some(format!(
+                    "Se detecto renovacion: monto bancario {} menor que MontoAFinanciar {}.",
+                    crate::validation::format_money(transfer_amount),
+                    crate::validation::format_money(request_amount),
+                )),
+            };
+        }
+
+        TransferAmountResolution {
+            outcome: TransferAmountOutcome::Exact,
+            bank_field: Some(bank_field),
+            transfer_amount: Some(transfer_amount),
+            request_amount: Some(request_amount),
+            detail: None,
+        }
     }
 }

@@ -41,7 +41,7 @@ impl CoreClient {
         let result = self.evaluate_obj(json!({
             "cmd": criteria,
             "tipo": "PreSolicitud.Module.Solicitud",
-            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;NombreCompleto;Prestamo.LineaPrestamo.Descripcion;CUIT;NroDocumento;Prestamo.[CBU transferencia]",
+            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;NombreCompleto;Prestamo.LineaPrestamo.Descripcion;CUIT;NroDocumento;Prestamo.[CBU transferencia];Prestamo.[Bco CMF];Prestamo.[Bco Coinag Cba]",
         }))?;
         let mut snapshot = parse_core_snapshot(&result);
         if snapshot.request_oid.is_empty() {
@@ -76,7 +76,7 @@ impl CoreClient {
         let result = self.evaluate_list(json!({
             "cmd": "[Estado.Descripcion]='A Transferir'",
             "tipo": "PreSolicitud.Module.Solicitud",
-            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;NombreCompleto;Prestamo.LineaPrestamo.Descripcion;CUIT;NroDocumento;Prestamo.[CBU transferencia]",
+            "campos": "Oid;Estado.Descripcion;MontoAFinanciar;NombreCompleto;Prestamo.LineaPrestamo.Descripcion;CUIT;NroDocumento;Prestamo.[CBU transferencia];Prestamo.[Bco CMF];Prestamo.[Bco Coinag Cba]",
             "max": 5000,
         }))?;
 
@@ -208,6 +208,34 @@ fn parse_core_snapshot(value: &Value) -> CoreSnapshot {
                 "prestamo.cbu transferencia",
             ],
         ),
+        bank_cmf_amount_raw: read_indexed_value(
+            value,
+            8,
+            &["Prestamo.[Bco CMF]", "Prestamo.Bco CMF"],
+        ),
+        bank_cmf_amount: read_indexed_value(value, 8, &["Prestamo.[Bco CMF]", "Prestamo.Bco CMF"])
+            .as_deref()
+            .and_then(parse_decimal),
+        bank_coinag_cba_amount_raw: read_indexed_value(
+            value,
+            9,
+            &[
+                "Prestamo.[Bco Coinag Cba]",
+                "Prestamo.Bco Coinag Cba",
+                "Prestamo.[Bco Coinag cba]",
+            ],
+        ),
+        bank_coinag_cba_amount: read_indexed_value(
+            value,
+            9,
+            &[
+                "Prestamo.[Bco Coinag Cba]",
+                "Prestamo.Bco Coinag Cba",
+                "Prestamo.[Bco Coinag cba]",
+            ],
+        )
+        .as_deref()
+        .and_then(parse_decimal),
         ..CoreSnapshot::default()
     }
 }

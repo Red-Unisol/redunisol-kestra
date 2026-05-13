@@ -223,7 +223,14 @@ Secrets:
 
 ## consulta_quiebra_credix
 
-Consulta CredixSA y devuelve la forma legacy de `consultar_tabla`: `none`, `multiple` o `single`.
+Consulta CredixSA y devuelve `none`, `multiple` o `single`.
+
+Cuando hay un unico resultado, el flow entra al detalle, ejecuta `Actualizar Todo` si CredixSA muestra el paso de actualizaciones online, espera a que terminen los `Procesando...` y devuelve las secciones disponibles del informe final.
+
+Antes de navegar, calcula claves de cache por CUIL y por nombre normalizado. Si existe una entrada de menos de 7 dias, devuelve esa respuesta con `cache_hit=true` sin consultar CredixSA. Cuando consulta CredixSA y obtiene un resultado `single`, guarda el mismo informe por:
+
+- `credixsa:cuil:<cuil>`
+- `credixsa:name:<sha256_nombre_normalizado>`
 
 ### Entrada
 
@@ -248,15 +255,17 @@ Outputs principales:
 - `ok` (bool)
 - `status` (`none` | `multiple` | `single` | `error`)
 - `rows_json` (string JSON)
-- `data_json` (string JSON)
+- `data_json` (string JSON con las secciones/tablas del informe CredixSA)
 - `response_json` (string JSON con el contrato legacy)
 - `error` (string | vacio)
+- `cache_hit` (bool)
+- `cached_at` (string ISO | vacio)
 
-Contrato legacy serializado en `response_json`:
+Contrato serializado en `response_json`:
 
 - `{"status":"none","rows":[]}`
 - `{"status":"multiple","rows":[...]}`
-- `{"status":"single","data":[...]}`
+- `{"status":"single","data":[{"title":"Datos Filiatorios","source":"","headers":[],"rows":[...],"records":[...],"text":"..."}]}`
 
 ### Variables
 
@@ -272,14 +281,52 @@ Configuracion inline en el flow:
 - `CREDIX_LOGIN_URL=https://www.credixsa.com/nuevo/login.php`
 - `CREDIX_TIMEOUT_SECONDS=30`
 - `CREDIX_DEBUG=false`
+- `CREDIX_CACHE_MAX_AGE_DAYS=7`
 
 ### Namespace files
 
 - `kestra/automations/analisis-credito/files/consulta_quiebra_credix/**`
 
+## consulta_credixsa_cache_warmup
+
+Precalienta cache de CredixSA para solicitudes del dia tomadas desde el core financiero.
+
+Corre cada minuto con concurrencia `1`. En cada corrida:
+
+1. lee el indice diario `credixsa:daily:index`
+2. consulta solicitudes de hoy en `PreSolicitud.Module.Solicitud`
+3. completa CUIL desde `F.Module.SocioMutual` si la solicitud trae solo DNI
+4. omite solicitudes ya procesadas/cacheadas hoy
+5. procesa un lote acotado
+6. consulta CredixSA con retry por candidato
+7. guarda cache por CUIL y por nombre si el resultado es `single`
+8. actualiza el indice diario
+
+Si CredixSA falla para un candidato, ese candidato no se marca como procesado; la siguiente corrida vuelve a intentarlo.
+
+### Variables
+
+Secrets:
+
+- `DEVEXPRESS_EVALUATE_API_BASE_URL`
+- `CREDIX_CLIENTE`
+- `CREDIX_USER`
+- `CREDIX_PASS`
+
+Config en `envs`:
+
+- `vimarx_timeout_seconds`
+- `vimarx_verify_tls`
+- `local_tz` opcional, default `America/Argentina/Buenos_Aires`
+- `credixsa_warmup_max_per_run` opcional, default `5`
+- `credixsa_warmup_core_max_rows` opcional, default `1000`
+- `credixsa_warmup_retry_attempts` opcional, default `2`
+
 ## consulta_quiebra_credix_http
 
-Consulta CredixSA por HTTP directo y devuelve la forma legacy de `consultar_tabla`: `none`, `multiple` o `single`.
+Consulta CredixSA por HTTP directo y devuelve `none`, `multiple` o `single`.
+
+Este transporte no ejecuta los refrescos JS de `Actualizar Todo`; se mantiene como alternativa para lectura directa, con el mismo shape de salida por secciones cuando llega al informe final.
 
 ### Entrada
 
@@ -304,15 +351,15 @@ Outputs principales:
 - `ok` (bool)
 - `status` (`none` | `multiple` | `single` | `error`)
 - `rows_json` (string JSON)
-- `data_json` (string JSON)
+- `data_json` (string JSON con las secciones/tablas del informe CredixSA)
 - `response_json` (string JSON con el contrato legacy)
 - `error` (string | vacio)
 
-Contrato legacy serializado en `response_json`:
+Contrato serializado en `response_json`:
 
 - `{"status":"none","rows":[]}`
 - `{"status":"multiple","rows":[...]}`
-- `{"status":"single","data":[...]}`
+- `{"status":"single","data":[{"title":"Datos Filiatorios","source":"","headers":[],"rows":[...],"records":[...],"text":"..."}]}`
 
 ### Variables
 

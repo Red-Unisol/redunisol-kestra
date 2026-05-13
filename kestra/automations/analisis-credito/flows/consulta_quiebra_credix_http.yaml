@@ -1,7 +1,7 @@
 id: consulta_quiebra_credix_http
 namespace: redunisol
 
-description: Consulta CredixSA por HTTP directo y devuelve el estado none, multiple o single segun la tabla intermedia de resultados.
+description: Consulta CredixSA por HTTP directo y devuelve el informe disponible por secciones cuando llega al detalle.
 
 labels:
   env: prod

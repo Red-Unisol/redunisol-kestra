@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+@reboot cd /opt/coinag-balance-guard && set -a && source /opt/coinag-balance-guard/coinag-balance-guard.env && set +a && /opt/coinag-balance-guard/.venv/bin/python -m coinag_balance_guard >> /var/log/coinag-balance-guard.log 2>&1
+*/5 * * * * cd /opt/coinag-balance-guard && set -a && source /opt/coinag-balance-guard/coinag-balance-guard.env && set +a && /opt/coinag-balance-guard/.venv/bin/python -m coinag_balance_guard >> /var/log/coinag-balance-guard.log 2>&1

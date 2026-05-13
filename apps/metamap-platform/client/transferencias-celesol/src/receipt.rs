@@ -89,7 +89,7 @@ pub fn write_receipt(
     );
     draw_divider(&current_layer, DIVIDER_Y_MM);
 
-    let amount = case.amount_display();
+    let amount = case.transfer_amount_display();
     let rows = vec![
         ("N° de transacción", external_transfer_id.to_owned()),
         ("Tipo de transferencia", "Inmediata".to_owned()),

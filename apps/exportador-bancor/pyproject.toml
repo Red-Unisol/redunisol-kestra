@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exportador-bancor"
+version = "1.2.1"
+description = "Exportador ARC Bancor basado en EvaluateList y planilla mensual de intentos."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "openpyxl>=3.1,<4.0",
+  "pandas>=2.2,<3.1",
+  "requests>=2.32,<3.0",
+]
+
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6.0,<7.0",
+]
+
+[project.scripts]
+exportador-bancor = "exportador_bancor.cli:main"
+exportador-bancor-gui = "exportador_bancor.gui:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

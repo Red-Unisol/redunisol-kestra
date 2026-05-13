@@ -128,9 +128,9 @@ def consultar_tabla(request: SearchRequest, config: CredixConfig) -> dict[str, A
     final_detail = _advance_detail_step(session, detail_entry, timeout_seconds)
     _debug_dump_html(config, "detail_final", final_detail.text)
 
-    data = _extract_edicts(final_detail.text)
+    data = _extract_report_sections(final_detail.text)
     if not data and not _is_detail_summary_page(final_detail.text, final_detail.url):
-        raise RuntimeError("Timed out waiting for the 'Edictos judiciales' table.")
+        raise RuntimeError("Timed out waiting for CredixSA report sections.")
 
     return build_single_result(request, data, nombre=selected_candidate.nombre)
 
@@ -156,7 +156,7 @@ def build_multiple_result(
 
 def build_single_result(
     request: SearchRequest,
-    data: list[dict[str, str]],
+    data: list[dict[str, Any]],
     *,
     nombre: str | None = None,
 ) -> dict[str, Any]:
@@ -325,6 +325,101 @@ def _extract_edicts(html: str) -> list[dict[str, str]]:
     return data
 
 
+def _extract_report_sections(html: str) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(html, "html.parser")
+    sections: list[dict[str, Any]] = []
+
+    for index, table in enumerate(soup.select("table")):
+        rows: list[list[str]] = []
+        header_rows: list[int] = []
+
+        for row in table.select("tr"):
+            cells = row.find_all(["th", "td"], recursive=False)
+            if not cells:
+                continue
+            values = [normalize_name(cell.get_text(" ", strip=True)) for cell in cells]
+            values = [value for value in values if value]
+            if not values:
+                continue
+            if all(cell.name == "th" for cell in cells):
+                header_rows.append(len(rows))
+            rows.append(values)
+
+        text = normalize_name(table.get_text(" ", strip=True))
+        if not text or not rows:
+            continue
+
+        sections.append(_normalize_report_section(index, rows, header_rows, text))
+
+    return sections
+
+
+def _normalize_report_section(
+    index: int,
+    rows: list[list[str]],
+    header_rows: list[int],
+    text: str,
+) -> dict[str, Any]:
+    headers = _section_column_headers(rows, header_rows)
+    title = _section_title(rows)
+    return {
+        "index": index,
+        "title": title,
+        "source": _section_source(title),
+        "headers": headers,
+        "rows": rows,
+        "records": _section_records(rows, headers),
+        "text": text,
+    }
+
+
+def _section_title(rows: list[list[str]]) -> str:
+    for row in rows:
+        for cell in row:
+            if cell:
+                return cell
+    return ""
+
+
+def _section_source(title: str) -> str:
+    match = re.search(r"\bFuente:\s*(.+)$", title, flags=re.IGNORECASE)
+    return normalize_name(match.group(1)) if match else ""
+
+
+def _section_column_headers(rows: list[list[str]], header_rows: list[int]) -> list[str]:
+    for index in header_rows:
+        row = rows[index]
+        if len(row) > 1:
+            return [_deduplicate_header(value, position) for position, value in enumerate(row)]
+
+    widest = max(rows, key=len, default=[])
+    if len(widest) > 2:
+        return [_deduplicate_header(value, position) for position, value in enumerate(widest)]
+
+    return []
+
+
+def _deduplicate_header(value: str, position: int) -> str:
+    return normalize_name(value) or f"columna_{position + 1}"
+
+
+def _section_records(rows: list[list[str]], headers: list[str]) -> list[dict[str, str]]:
+    if headers:
+        records: list[dict[str, str]] = []
+        for row in rows:
+            if row == headers or len(row) != len(headers):
+                continue
+            records.append(dict(zip(headers, row, strict=True)))
+        if records:
+            return records
+
+    return [
+        {row[0]: row[1]}
+        for row in rows
+        if len(row) == 2 and row[0]
+    ]
+
+
 def _find_edicts_table(soup: BeautifulSoup) -> Tag | None:
     for table in soup.select("table"):
         text = table.get_text(" ", strip=True)
@@ -435,7 +530,7 @@ def _base_result(
     *,
     status: str,
     rows: list[dict[str, str]],
-    data: list[dict[str, str]],
+    data: list[dict[str, Any]],
     error: str,
     ok: bool = True,
     nombre: str | None = None,
