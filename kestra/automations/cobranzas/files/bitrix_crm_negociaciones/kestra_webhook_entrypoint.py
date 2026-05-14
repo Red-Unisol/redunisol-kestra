@@ -84,7 +84,23 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
             stage_id=stage_id,
         )
 
-    plan = build_stage_plan(deal_data, stage_id, stage_cfg)
+    if event == "ONCRMDEALUPDATE" and not prev_stage_id and not service.build_stage_cycle_id(deal_data):
+        return _result(
+            ok=True,
+            action="ignored",
+            reason="stage_change_not_detected",
+            deal_id=str(deal_id),
+            stage_id=stage_id,
+            stage_name=str(stage_cfg.get("name") or ""),
+        )
+
+    stage_cycle_fallback = _stage_cycle_fallback(form, event, prev_stage_id, stage_id)
+    plan = build_stage_plan(
+        deal_data,
+        stage_id,
+        stage_cfg,
+        stage_cycle_fallback=stage_cycle_fallback,
+    )
     return _result(
         ok=True,
         action="planned",
@@ -112,9 +128,14 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
     )
 
 
-def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[str, Any]) -> Dict[str, Any]:
+def build_stage_plan(
+    deal_data: Dict[str, Any],
+    stage_id: str,
+    stage_cfg: Dict[str, Any],
+    stage_cycle_fallback: str = "",
+) -> Dict[str, Any]:
     now = service.get_now()
-    stage_cycle_id = service.build_stage_cycle_id(deal_data)
+    stage_cycle_id = service.build_stage_cycle_id(deal_data, fallback_value=stage_cycle_fallback)
     template_id = int(stage_cfg.get("template_id") or 0)
     second_template_id = int(stage_cfg.get("second_template_id") or 0)
     wait_hours = float(stage_cfg.get("wait_hours_no_response") or 0)
@@ -288,6 +309,25 @@ def _result(
         "planned_move_at": planned_move_at,
         "payload_preview": "",
     }
+
+
+def _stage_cycle_fallback(
+    form: Dict[str, Any],
+    event: Any,
+    prev_stage_id: str,
+    stage_id: str,
+) -> str:
+    event_ts = str(service.get_value(form, "ts", ("ts",)) or "").strip()
+    if not event_ts:
+        return ""
+
+    if event == "ONCRMDEALADD":
+        return f"created_{event_ts}"
+
+    if event == "ONCRMDEALUPDATE" and prev_stage_id and prev_stage_id != stage_id:
+        return f"moved_{event_ts}"
+
+    return ""
 
 
 def _payload_preview(payload: Any) -> str:

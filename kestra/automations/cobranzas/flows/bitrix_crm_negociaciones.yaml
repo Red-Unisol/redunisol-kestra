@@ -55,9 +55,27 @@ tasks:
     key: "{{ outputs.procesar_webhook.vars.legacy_plan_key }}"
     errorOnMissing: false
 
+  - id: evaluar_plan_guard
+    type: io.kestra.plugin.scripts.python.Commands
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' }}"
+    namespaceFiles:
+      enabled: true
+      include:
+        - bitrix_crm_negociaciones/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+    containerImage: ghcr.io/kestra-io/pydata:latest
+    beforeCommands:
+      - pip install kestra > /dev/null
+    env:
+      NEW_PLAN_JSON: "{{ (outputs.leer_plan_existente.value ?? null) | json }}"
+      LEGACY_PLAN_JSON: "{{ (outputs.leer_plan_legacy.value ?? null) | json }}"
+    commands:
+      - python -m bitrix_crm_negociaciones.kestra_plan_guard_entrypoint
+
   - id: guardar_plan_borrador
     type: io.kestra.plugin.core.kv.Set
-    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and (outputs.leer_plan_existente.value ?? null) == null and (outputs.leer_plan_legacy.value ?? null) == null }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and outputs.evaluar_plan_guard.vars.should_schedule }}"
     key: "{{ outputs.procesar_webhook.vars.plan_key }}"
     value: "{{ outputs.procesar_webhook.vars.plan_json_draft }}"
     kvType: JSON
@@ -66,7 +84,7 @@ tasks:
 
   - id: programar_accion_1
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_1_enabled and (outputs.leer_plan_existente.value ?? null) == null and (outputs.leer_plan_legacy.value ?? null) == null }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and outputs.procesar_webhook.vars.action_1_enabled and outputs.evaluar_plan_guard.vars.should_schedule }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_1_due_at }}"
@@ -77,7 +95,7 @@ tasks:
 
   - id: programar_accion_2
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_2_enabled and (outputs.leer_plan_existente.value ?? null) == null and (outputs.leer_plan_legacy.value ?? null) == null }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and outputs.procesar_webhook.vars.action_2_enabled and outputs.evaluar_plan_guard.vars.should_schedule }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_2_due_at }}"
@@ -88,7 +106,7 @@ tasks:
 
   - id: programar_accion_3
     type: io.kestra.plugin.core.flow.Subflow
-    runIf: "{{ outputs.procesar_webhook.vars.action_3_enabled and (outputs.leer_plan_existente.value ?? null) == null and (outputs.leer_plan_legacy.value ?? null) == null }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and outputs.procesar_webhook.vars.action_3_enabled and outputs.evaluar_plan_guard.vars.should_schedule }}"
     namespace: "{{ flow.namespace }}"
     flowId: bitrix_crm_negociaciones_execute
     scheduleDate: "{{ outputs.procesar_webhook.vars.action_3_due_at }}"
@@ -99,7 +117,7 @@ tasks:
 
   - id: marcar_plan_listo
     type: io.kestra.plugin.core.kv.Set
-    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and (outputs.leer_plan_existente.value ?? null) == null and (outputs.leer_plan_legacy.value ?? null) == null }}"
+    runIf: "{{ outputs.procesar_webhook.vars.plan_key != '' and outputs.evaluar_plan_guard.vars.should_schedule }}"
     key: "{{ outputs.procesar_webhook.vars.plan_key }}"
     value: "{{ outputs.procesar_webhook.vars.plan_json_ready }}"
     kvType: JSON
@@ -136,7 +154,10 @@ outputs:
     value: "{{ outputs.procesar_webhook.vars.legacy_plan_key }}"
   - id: plan_already_exists
     type: BOOLEAN
-    value: "{{ outputs.procesar_webhook.vars.plan_key != '' and ((outputs.leer_plan_existente.value ?? null) != null or (outputs.leer_plan_legacy.value ?? null) != null) }}"
+    value: "{{ outputs.procesar_webhook.vars.plan_key != '' and (outputs.evaluar_plan_guard.vars.plan_already_exists ?? false) }}"
+  - id: plan_guard_reason
+    type: STRING
+    value: "{{ outputs.evaluar_plan_guard.vars.reason ?? '' }}"
   - id: action_1_order
     type: STRING
     value: "{{ outputs.procesar_webhook.vars.action_1_order }}"

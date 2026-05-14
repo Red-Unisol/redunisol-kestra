@@ -161,8 +161,11 @@ def update_deal_stage(deal_id: str, next_stage: str) -> Dict[str, Any]:
     return bitrix_call("crm.deal.update", {"ID": deal_id, "fields": {"STAGE_ID": next_stage}})
 
 
-def build_stage_cycle_id(deal: Dict[str, Any]) -> str:
-    return sanitize_key_segment(str(deal.get("MOVED_TIME") or ""))
+def build_stage_cycle_id(deal: Dict[str, Any], fallback_value: str = "") -> str:
+    moved_time = str(deal.get("MOVED_TIME") or "").strip()
+    if moved_time:
+        return sanitize_key_segment(moved_time)
+    return sanitize_key_segment(fallback_value)
 
 
 def sanitize_key_segment(value: str) -> str:
