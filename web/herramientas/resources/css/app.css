@@ -681,6 +681,235 @@ input {
     color: var(--muted);
 }
 
+.shell--wide {
+    width: min(1240px, calc(100% - 32px));
+}
+
+.credix-page__topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+
+.credix-page__back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--navy);
+    text-decoration: none;
+    font-weight: 800;
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.credix-page__logo {
+    width: 154px;
+    max-width: 44vw;
+    height: auto;
+}
+
+.credix-page {
+    display: grid;
+    gap: 18px;
+}
+
+.credix-page__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 10px 0 4px;
+}
+
+.credix-page__title {
+    margin: 10px 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 3vw, 2.35rem);
+    line-height: 1.08;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+
+.credix-page__description {
+    margin: 10px 0 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.credix-page__status,
+.credix-page__miniMetrics {
+    display: grid;
+    gap: 6px;
+    min-width: 180px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.credix-page__status span,
+.credix-page__miniMetrics span,
+.credix-report__metric span {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.credix-page__status strong,
+.credix-page__miniMetrics strong {
+    font-size: 0.96rem;
+    line-height: 1.35;
+}
+
+.credix-search {
+    padding: 20px;
+    border-radius: 18px;
+}
+
+.credix-search__form {
+    max-width: none;
+}
+
+.credix-page__result {
+    padding: 20px;
+    border-radius: 18px;
+}
+
+.credix-page__resultHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.credix-report {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.credix-report__section {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(27, 47, 87, 0.08);
+    background: rgba(255, 255, 255, 0.64);
+}
+
+.credix-report__section--primary {
+    grid-column: 1 / -1;
+}
+
+.credix-report__sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.credix-report__sectionHeader h2,
+.credix-report__stack h3 {
+    margin: 0;
+    font-size: 0.94rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.credix-report__metricGrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.credix-report__metric {
+    display: grid;
+    gap: 7px;
+    min-height: 92px;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.76);
+}
+
+.credix-report__metric strong {
+    font-size: 0.95rem;
+    line-height: 1.38;
+    overflow-wrap: anywhere;
+}
+
+.credix-report__note {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.credix-risk {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(101, 117, 148, 0.12);
+    color: var(--navy);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.credix-risk--verde {
+    background: #e2f4ec;
+    color: #245a42;
+}
+
+.credix-risk--rojo {
+    background: var(--red-soft);
+    color: var(--red);
+}
+
+.credix-report__stack {
+    display: grid;
+    gap: 10px;
+}
+
+.credix-report__item {
+    display: grid;
+    gap: 7px;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.credix-report__item strong {
+    line-height: 1.35;
+}
+
+.credix-report__item span,
+.credix-report__pairs span {
+    color: var(--muted);
+    line-height: 1.45;
+    font-size: 0.88rem;
+}
+
+.credix-report__pairs {
+    display: grid;
+    gap: 5px;
+}
+
+.credix-report__columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -690,12 +919,26 @@ input {
 @media (max-width: 980px) {
     .catalog__grid,
     .result__grid,
-    .credix-summary__grid {
+    .credix-summary__grid,
+    .credix-report,
+    .credix-report__metricGrid,
+    .credix-report__columns {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .credix-page__header,
+    .credix-page__resultHeader {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .credix-page__status,
+    .credix-page__miniMetrics {
+        width: 100%;
     }
 }
 
@@ -728,8 +971,22 @@ input {
 
     .catalog__grid,
     .result__grid,
-    .credix-summary__grid {
+    .credix-summary__grid,
+    .credix-report,
+    .credix-report__metricGrid,
+    .credix-report__columns {
         grid-template-columns: 1fr;
+    }
+
+    .credix-page__topbar {
+        align-items: flex-start;
+        flex-direction: column-reverse;
+    }
+
+    .credix-search,
+    .credix-page__result,
+    .credix-report__section {
+        padding: 16px;
     }
 
     .tool-card {

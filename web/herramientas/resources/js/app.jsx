@@ -65,6 +65,11 @@ function App({ branding, tools }) {
             return;
         }
 
+        if (tool.id === 'consulta-quiebra-credix') {
+            window.location.assign(tool.href || '/credixsa');
+            return;
+        }
+
         setSelectedToolId(tool.id);
         setError('');
         setResult(null);
@@ -513,6 +518,414 @@ function CredixReportSections({ sections }) {
                     <CredixSectionTable section={section} />
                 </article>
             ))}
+        </div>
+    );
+}
+
+function CredixsaPage({ branding, tool }) {
+    const [formValues, setFormValues] = React.useState({ cuit: '', nombre: '' });
+    const [loading, setLoading] = React.useState(false);
+    const [result, setResult] = React.useState(null);
+    const [error, setError] = React.useState('');
+    const normalized = parseJsonObject(result?.normalized_json);
+    const resultTone = getResultTone('consulta-quiebra-credix', result, error);
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+
+        if (!tool?.endpoint) {
+            setError('La herramienta todavia no tiene un endpoint configurado.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setResult(null);
+
+        try {
+            const response = await fetch(tool.endpoint, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(buildRequestBody('consulta-quiebra-credix', formValues)),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(extractErrorMessage(payload));
+            }
+
+            setResult(payload);
+        } catch (submitError) {
+            setError(submitError.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const clearToolState = () => {
+        setFormValues({ cuit: '', nombre: '' });
+        setError('');
+        setResult(null);
+    };
+
+    return (
+        <div className="shell shell--wide">
+            <section className="credix-page__topbar">
+                <a className="credix-page__back" href="/">Herramientas</a>
+                <img className="credix-page__logo" src={brandLogoUrl} alt="Red Unisol" />
+            </section>
+
+            <main className="credix-page">
+                <section className="credix-page__header">
+                    <div>
+                        <p className="section__eyebrow">{branding.eyebrow}</p>
+                        <h1 className="credix-page__title">Consulta CredixSA</h1>
+                        <p className="credix-page__description">
+                            Informe operativo normalizado para analisis de credito.
+                        </p>
+                    </div>
+                    <div className="credix-page__status">
+                        <span>Fuente</span>
+                        <strong>{result?.cache_hit ? 'Cache SQLite' : result ? 'Consulta online' : 'CredixSA'}</strong>
+                    </div>
+                </section>
+
+                <section className="panel credix-search">
+                    <form className="credix-search__form" onSubmit={handleSubmit}>
+                        <div className="form-grid">
+                            <div className="field">
+                                <label htmlFor="credix-cuit">CUIL o DNI</label>
+                                <input
+                                    id="credix-cuit"
+                                    name="cuit"
+                                    placeholder="20-12345678-3 o 12345678"
+                                    value={formValues.cuit}
+                                    onChange={(event) =>
+                                        setFormValues((current) => ({
+                                            ...current,
+                                            cuit: event.target.value,
+                                        }))
+                                    }
+                                    autoComplete="off"
+                                />
+                            </div>
+
+                            <div className="field">
+                                <label htmlFor="credix-nombre">Nombre</label>
+                                <input
+                                    id="credix-nombre"
+                                    name="nombre"
+                                    placeholder="Apellido y nombre"
+                                    value={formValues.nombre}
+                                    onChange={(event) =>
+                                        setFormValues((current) => ({
+                                            ...current,
+                                            nombre: event.target.value,
+                                        }))
+                                    }
+                                    autoComplete="off"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="actions">
+                            <button className="button button--primary" disabled={loading} type="submit">
+                                {loading ? 'Consultando...' : 'Consultar CredixSA'}
+                            </button>
+                            <button className="button button--ghost" type="button" onClick={clearToolState}>
+                                Limpiar
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                {loading && (
+                    <section className="loading-state" role="status" aria-live="polite">
+                        <div className="loading-state__spinner" aria-hidden="true" />
+                        <div className="loading-state__body">
+                            <h2 className="loading-state__headline">Consultando CredixSA</h2>
+                            <p className="loading-state__copy">{getLoadingCopy('consulta-quiebra-credix')}</p>
+                        </div>
+                    </section>
+                )}
+
+                {(error || result) && (
+                    <section className={`result result--${resultTone} credix-page__result`}>
+                        <div className="credix-page__resultHeader">
+                            <div>
+                                <h2 className="result__headline">{getResultHeadline('consulta-quiebra-credix', result, error)}</h2>
+                                <p className="result__copy">{getResultCopy('consulta-quiebra-credix', result, error)}</p>
+                            </div>
+                            {result && (
+                                <div className="credix-page__miniMetrics">
+                                    <span>{result.cuit || 'Sin CUIL'}</span>
+                                    <strong>{result.nombre || 'Sin nombre'}</strong>
+                                </div>
+                            )}
+                        </div>
+
+                        {result?.status === 'multiple' && (
+                            <div className="result__stack">
+                                <h3 className="result__subheading">Coincidencias encontradas</h3>
+                                <div className="result__list">
+                                    {parseJsonArray(result.rows_json).map((row, index) => (
+                                        <article className="result__listItem" key={`${row.cuit || 'row'}-${index}`}>
+                                            <strong>{row.nombre || 'Sin nombre'}</strong>
+                                            <span>CUIT: {row.cuit || 'Sin dato'}</span>
+                                            <span>Documento: {row.documento || 'Sin dato'}</span>
+                                        </article>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {result?.status === 'single' && (
+                            normalized ? (
+                                <CredixDedicatedReport normalized={normalized} />
+                            ) : (
+                                <p className="result__empty">No hay datos normalizados disponibles para esta consulta.</p>
+                            )
+                        )}
+                    </section>
+                )}
+            </main>
+        </div>
+    );
+}
+
+function CredixDedicatedReport({ normalized }) {
+    return (
+        <div className="credix-report">
+            <CredixPersonPanel persona={normalized?.persona || {}} />
+            <CredixBcraPanel bcra={normalized?.bcra || {}} />
+            <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
+            <CredixQuiebrasPanel quiebras={normalized?.quiebras || {}} />
+            <CredixAportesPanel aportes={normalized?.aportes || {}} />
+        </div>
+    );
+}
+
+function CredixPersonPanel({ persona }) {
+    const birthDate = persona.fecha_nacimiento || extractBirthDate(persona.edad);
+    const metrics = [
+        ['Nombre completo', persona.nombre_completo],
+        ['Edad', stripBirthDateFromAge(persona.edad)],
+        ['Fecha de nacimiento', birthDate],
+        ['Genero', persona.genero],
+        ['Localidad', [persona.localidad, persona.provincia].filter(Boolean).join(' - ')],
+        ['Documento', persona.documento],
+        ['CUIL', persona.cuit],
+    ].filter(([, value]) => value);
+
+    return (
+        <section className="credix-report__section credix-report__section--primary">
+            <div className="credix-report__sectionHeader">
+                <h2>Datos filiatorios</h2>
+            </div>
+            <div className="credix-report__metricGrid">
+                {metrics.map(([label, value]) => (
+                    <article className="credix-report__metric" key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                    </article>
+                ))}
+            </div>
+            {persona.domicilio && <p className="credix-report__note">{persona.domicilio}</p>}
+        </section>
+    );
+}
+
+function CredixBcraPanel({ bcra }) {
+    const history = Array.isArray(bcra.historial_por_entidad) ? bcra.historial_por_entidad : [];
+    const entities = Array.isArray(bcra.entidades) ? bcra.entidades : [];
+    const activeDebts = Array.isArray(bcra.deudas_vigentes) ? bcra.deudas_vigentes : [];
+
+    return (
+        <section className="credix-report__section">
+            <div className="credix-report__sectionHeader">
+                <h2>Situaciones BCRA</h2>
+                <span className={`credix-risk credix-risk--${String(bcra.resumen?.color || '').toLowerCase()}`}>
+                    {bcra.resumen?.color || 'Sin datos'}
+                </span>
+            </div>
+            <div className="credix-report__metricGrid">
+                <article className="credix-report__metric">
+                    <span>Detalle</span>
+                    <strong>{bcra.resumen?.detalle || 'Sin datos'}</strong>
+                </article>
+                <article className="credix-report__metric">
+                    <span>Deuda vigente total</span>
+                    <strong>{bcra.deuda_vigente_total || 'Sin datos'}</strong>
+                </article>
+                <article className="credix-report__metric">
+                    <span>Entidades informadas</span>
+                    <strong>{entities.length || 'Sin datos'}</strong>
+                </article>
+            </div>
+
+            {activeDebts.length > 0 && (
+                <CredixSimpleTable
+                    columns={['Entidad', 'Periodo', 'Monto', 'Situacion']}
+                    rows={activeDebts.map((row) => [
+                        row.entidad || 'Sin dato',
+                        row.periodo || 'Sin dato',
+                        row.monto || 'Sin dato',
+                        row.situacion || row.porcentaje || 'Sin dato',
+                    ])}
+                />
+            )}
+
+            {history.length > 0 && (
+                <div className="credix-report__stack">
+                    <h3>Historial por entidad</h3>
+                    {history.slice(0, 6).map((period, index) => (
+                        <article className="credix-report__item" key={`${period.periodo || 'periodo'}-${index}`}>
+                            <strong>{period.periodo || 'Periodo sin dato'}</strong>
+                            <div className="credix-report__pairs">
+                                {Object.entries(period.entidades || {}).map(([entity, amount]) => (
+                                    <span key={entity}>{entity}: {amount}</span>
+                                ))}
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function CredixPrevisionalPanel({ previsional }) {
+    const employers = Array.isArray(previsional.empleadores) ? previsional.empleadores : [];
+    const registrations = Array.isArray(previsional.registraciones) ? previsional.registraciones : [];
+
+    return (
+        <section className="credix-report__section">
+            <div className="credix-report__sectionHeader">
+                <h2>Situacion previsional</h2>
+            </div>
+            {previsional.mensaje && <p className="credix-report__note">{previsional.mensaje}</p>}
+            {employers.length > 0 ? (
+                <div className="credix-report__stack">
+                    {employers.map((employer, index) => (
+                        <article className="credix-report__item" key={`${employer.cuit || 'empleador'}-${index}`}>
+                            <strong>{employer.nombre || 'Empleador sin nombre'}</strong>
+                            <span>{employer.cuit || 'Sin CUIT'}</span>
+                            <span>{employer.actividad || 'Sin actividad'}</span>
+                            <span>{employer.domicilio || 'Sin domicilio'}</span>
+                        </article>
+                    ))}
+                </div>
+            ) : (
+                <p className="result__empty">Sin empleadores informados.</p>
+            )}
+            {registrations.length > 0 && (
+                <div className="credix-report__stack">
+                    <h3>Registraciones</h3>
+                    {registrations.map((registration, index) => (
+                        <article className="credix-report__item" key={`${registration.periodo || 'registro'}-${index}`}>
+                            <strong>{registration.periodo || 'Registro'}</strong>
+                            <span>{registration.mensaje || 'Sin detalle'}</span>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function CredixQuiebrasPanel({ quiebras }) {
+    const edicts = Array.isArray(quiebras.edictos) ? quiebras.edictos : [];
+
+    return (
+        <section className="credix-report__section">
+            <div className="credix-report__sectionHeader">
+                <h2>Quiebras</h2>
+                <span className="credix-risk">{edicts.length ? `${edicts.length} edictos` : 'Sin edictos'}</span>
+            </div>
+            {edicts.length > 0 ? (
+                <CredixSimpleTable
+                    columns={['Fecha', 'Fuente', 'Resumen']}
+                    rows={edicts.map((edict) => [
+                        edict.fecha || 'Sin dato',
+                        edict.fuente || 'Sin dato',
+                        edict.resumen || 'Sin dato',
+                    ])}
+                />
+            ) : (
+                <p className="result__empty">{quiebras.mensaje || 'Sin edictos judiciales informados.'}</p>
+            )}
+        </section>
+    );
+}
+
+function CredixAportesPanel({ aportes }) {
+    const registrations = Array.isArray(aportes.registraciones) ? aportes.registraciones : [];
+    const healthProviders = Array.isArray(aportes.obra_sociales) ? aportes.obra_sociales : [];
+    const employers = Array.isArray(aportes.empleadores) ? aportes.empleadores : [];
+
+    return (
+        <section className="credix-report__section">
+            <div className="credix-report__sectionHeader">
+                <h2>Aportes</h2>
+            </div>
+            {aportes.mensaje && <p className="credix-report__note">{aportes.mensaje}</p>}
+            <div className="credix-report__columns">
+                <div className="credix-report__stack">
+                    <h3>Registraciones</h3>
+                    {registrations.length > 0 ? registrations.map((registration, index) => (
+                        <article className="credix-report__item" key={`${registration.periodo || 'registro'}-${index}`}>
+                            <strong>{registration.periodo || 'Registro'}</strong>
+                            <span>{registration.mensaje || 'Sin detalle'}</span>
+                        </article>
+                    )) : <p className="result__empty">Sin registraciones informadas.</p>}
+                </div>
+                <div className="credix-report__stack">
+                    <h3>Obra social</h3>
+                    {healthProviders.length > 0 ? healthProviders.map((item, index) => (
+                        <article className="credix-report__item" key={`${item.obra_social || item.mensaje || 'obra-social'}-${index}`}>
+                            <strong>{item.obra_social || item.mensaje || 'Sin datos'}</strong>
+                            {item.situacion_laboral && <span>{item.situacion_laboral}</span>}
+                            {item.empleador && <span>{item.empleador}</span>}
+                        </article>
+                    )) : <p className="result__empty">Sin obra social informada.</p>}
+                </div>
+            </div>
+            {employers.length > 0 && (
+                <div className="credix-report__stack">
+                    <h3>Empleadores vinculados</h3>
+                    {employers.map((employer, index) => (
+                        <article className="credix-report__item" key={`${employer.cuit || 'aporte-empleador'}-${index}`}>
+                            <strong>{employer.nombre || 'Empleador sin nombre'}</strong>
+                            <span>{employer.cuit || 'Sin CUIT'}</span>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function CredixSimpleTable({ columns, rows }) {
+    return (
+        <div className="result__tableWrap">
+            <table className="result__table">
+                <thead>
+                    <tr>
+                        {columns.map((column) => <th key={column}>{column}</th>)}
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows.map((row, rowIndex) => (
+                        <tr key={rowIndex}>
+                            {row.map((cell, cellIndex) => <td key={cellIndex}>{cell || 'Sin dato'}</td>)}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -996,6 +1409,15 @@ function formatCurrencyValue(rawValue) {
     return currencyFormatter.format(numericValue);
 }
 
+function extractBirthDate(ageValue) {
+    const match = String(ageValue || '').match(/\(([^)]+)\)/);
+    return match?.[1] || '';
+}
+
+function stripBirthDateFromAge(ageValue) {
+    return String(ageValue || '').replace(/\s*\([^)]+\)\s*/, '').trim();
+}
+
 function getLoadingHeadline(tool) {
     if (!tool?.title) {
         return 'Consultando herramienta';
@@ -1025,5 +1447,16 @@ function getLoadingCopy(toolId) {
 }
 
 if (rootElement) {
-    createRoot(rootElement).render(<App branding={initialPayload.branding || {}} tools={initialPayload.tools || []} />);
+    if (initialPayload.page === 'credixsa') {
+        const tools = initialPayload.tools || [];
+        const credixTool = tools.find((tool) => tool.id === 'consulta-quiebra-credix') || {};
+        createRoot(rootElement).render(
+            <CredixsaPage
+                branding={initialPayload.branding || {}}
+                tool={credixTool}
+            />,
+        );
+    } else {
+        createRoot(rootElement).render(<App branding={initialPayload.branding || {}} tools={initialPayload.tools || []} />);
+    }
 }
