@@ -143,6 +143,7 @@ def build_stage_plan(
     final_wait_hours = float(stage_cfg.get("final_wait_hours") or 0)
     next_stage = str(stage_cfg.get("next_stage_if_no_response") or "")
     send_on_promise_date = bool(stage_cfg.get("send_on_promise_date"))
+    send_on_future_promise_date = bool(stage_cfg.get("send_on_future_promise_date"))
 
     first_action_at: datetime | None = None
     second_action_at: datetime | None = None
@@ -166,9 +167,18 @@ def build_stage_plan(
 
     elif second_template_id and second_wait_hours and final_wait_hours and next_stage:
         first_action_at = now if template_id else None
-        second_action_at = service.add_business_hours(now, second_wait_hours)
-        move_at = service.add_business_hours(now, second_wait_hours + final_wait_hours)
         plan_kind = "double_send_then_move"
+        if send_on_future_promise_date and template_id:
+            promise_field = service.get_env("PROMISE_DATE_FIELD", "UF_CRM_1724427951")
+            promise_value = str(deal_data.get(promise_field) or "").strip()
+            future_send_at = service.future_promise_send_time(promise_value, reference_dt=now)
+            if future_send_at is not None:
+                first_action_at = future_send_at
+                plan_kind = "future_promise_reminder"
+
+        reminder_base_at = first_action_at or now
+        second_action_at = service.add_business_hours(reminder_base_at, second_wait_hours)
+        move_at = service.add_business_hours(reminder_base_at, second_wait_hours + final_wait_hours)
 
     elif template_id and wait_hours and next_stage:
         first_action_at = now
