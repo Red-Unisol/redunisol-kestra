@@ -45,6 +45,7 @@ class CredixConfig:
     login_url: str
     timeout_ms: int
     debug_enabled: bool
+    debug_dir: str
     cache_by_cuil: dict[str, Any] | None = None
     cache_by_name: dict[str, Any] | None = None
     cache_max_age_days: int = CACHE_MAX_AGE_DAYS
@@ -83,6 +84,7 @@ def load_config_from_env() -> CredixConfig:
     login_url = os.getenv("CREDIX_LOGIN_URL", "https://www.credixsa.com/nuevo/login.php").strip()
     timeout_raw = os.getenv("CREDIX_TIMEOUT_SECONDS", "30").strip() or "30"
     debug_raw = os.getenv("CREDIX_DEBUG", "").strip().lower()
+    debug_dir = os.getenv("CREDIX_DEBUG_DIR", "").strip()
     cache_max_age_raw = os.getenv("CREDIX_CACHE_MAX_AGE_DAYS", str(CACHE_MAX_AGE_DAYS)).strip()
 
     if not cliente or not usuario or not password:
@@ -101,6 +103,7 @@ def load_config_from_env() -> CredixConfig:
         login_url=login_url,
         timeout_ms=int(timeout_seconds * 1000),
         debug_enabled=debug_raw in {"1", "true", "yes"},
+        debug_dir=debug_dir,
         cache_by_cuil=decode_cache_env(os.getenv("CREDIX_CACHE_BY_CUIL_JSON", "")),
         cache_by_name=decode_cache_env(os.getenv("CREDIX_CACHE_BY_NAME_JSON", "")),
         cache_max_age_days=int(cache_max_age_raw or CACHE_MAX_AGE_DAYS),
@@ -125,8 +128,10 @@ def consultar_tabla(request: SearchRequest, config: CredixConfig) -> dict[str, A
 
         try:
             _login(page, config, request)
+            _debug_dump(page, config, "01_post_login", request)
             _search(page, request)
             _wait_search_results(page, config)
+            _debug_dump(page, config, "02_search_results", request)
 
             candidates = _extract_candidates(page)
             if not candidates:
@@ -139,9 +144,13 @@ def consultar_tabla(request: SearchRequest, config: CredixConfig) -> dict[str, A
             selected_candidate = candidates[0]
             selected_candidate.link.click()
             page.wait_for_load_state("networkidle")
+            _debug_dump(page, config, "03_detail_entry", request)
             _refresh_online_updates_if_available(page, config, request)
+            _debug_dump(page, config, "06_after_updates", request)
             _wait_next_ui_step(page, request)
+            _debug_dump(page, config, "07_after_next_step", request)
             _wait_report_tables_stable(page, config, request)
+            _debug_dump(page, config, "08_report_tables_stable", request)
             data = _extract_report_sections(page, config, request)
             if not data and not _is_detail_summary_page(page):
                 raise TimeoutError("Timed out waiting for CredixSA report sections.")
@@ -609,14 +618,23 @@ def _refresh_online_updates_if_available(
     deadline = time.monotonic() + (config.timeout_ms / 1000)
     while time.monotonic() < deadline:
         if _is_detail_summary_page(page):
+            _log_event(
+                "consulta_quiebra_update_all_skipped_detail_summary",
+                cuit=request.cuit,
+                nombre=request.nombre,
+                url=page.url,
+            )
+            _debug_dump(page, config, "04_update_all_skipped_detail_summary", request)
             return
 
         update_all = page.locator(UPDATE_ALL_SELECTOR)
         try:
             if update_all.count() > 0 and update_all.first.is_visible():
                 _log_event("consulta_quiebra_update_all_start", cuit=request.cuit, nombre=request.nombre)
+                _debug_dump(page, config, "04_before_update_all", request)
                 update_all.first.click()
                 page.wait_for_load_state("networkidle")
+                _debug_dump(page, config, "05_after_update_all_click", request)
                 _wait_online_updates_finished(page, config, request)
                 _log_event("consulta_quiebra_update_all_done", cuit=request.cuit, nombre=request.nombre)
                 return
@@ -625,6 +643,13 @@ def _refresh_online_updates_if_available(
             raise
 
         if _find_detail_next_control(page) is not None:
+            _log_event(
+                "consulta_quiebra_update_all_not_available",
+                cuit=request.cuit,
+                nombre=request.nombre,
+                url=page.url,
+            )
+            _debug_dump(page, config, "04_update_all_not_available", request)
             return
 
         time.sleep(0.2)
@@ -1186,12 +1211,27 @@ def _debug_dump(page: "Page", config: CredixConfig, prefix: str, request: Search
         return
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = f"credixsa_{prefix}_{timestamp}"
+    lookup = request.cuit or request.nombre or "sin_criterio"
+    safe_lookup = re.sub(r"[^A-Za-z0-9_.-]+", "_", lookup).strip("_")[:80] or "sin_criterio"
+    base_name = f"credixsa_{prefix}_{safe_lookup}_{timestamp}"
+    debug_dir = getattr(config, "debug_dir", "") or "."
+    screenshot_path = os.path.join(debug_dir, f"{base_name}.png")
+    html_path = os.path.join(debug_dir, f"{base_name}.html")
     try:
-        page.screenshot(path=f"{base_name}.png", full_page=True)
+        os.makedirs(debug_dir, exist_ok=True)
+        page.screenshot(path=screenshot_path, full_page=True)
         html = page.content()
-        with open(f"{base_name}.html", "w", encoding="utf-8") as handle:
+        with open(html_path, "w", encoding="utf-8") as handle:
             handle.write(html)
+        _log_event(
+            "consulta_quiebra_debug_dump",
+            cuit=request.cuit,
+            nombre=request.nombre,
+            stage=prefix,
+            screenshot_path=screenshot_path,
+            html_path=html_path,
+            url=page.url,
+        )
     except Exception as exc:
         _log_event(
             "consulta_quiebra_debug_dump_error",
