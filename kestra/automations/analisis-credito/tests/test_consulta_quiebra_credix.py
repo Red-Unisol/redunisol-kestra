@@ -450,6 +450,70 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
 
         self.assertTrue(page.update_all.clicked)
 
+    def test_refresh_online_updates_clicks_visible_individual_updates_when_update_all_hidden(self) -> None:
+        class StubLocator:
+            def __init__(self, *, count=1, visible=True, text="", enabled=True):
+                self._count = count
+                self.visible = visible
+                self.text = text
+                self.enabled = enabled
+                self.first = self
+
+            def count(self):
+                return self._count
+
+            def is_visible(self):
+                return self.visible
+
+            def is_enabled(self):
+                return self.enabled
+
+            def inner_text(self, timeout=None):
+                return self.text
+
+        class StubPage:
+            url = "https://www.credixsa.com/nuevo/con_cuit_pde_ajax.php"
+
+            def __init__(self):
+                self.update_all = StubLocator(count=1, visible=False)
+                self.update_buttons = StubLocator(count=3, visible=True)
+                self.next_button = StubLocator(count=1, enabled=True)
+                self.body = StubLocator(text="PASO 3: Actualizaciones en linea")
+                self.evaluate_calls = []
+
+            def locator(self, selector, has_text=None):
+                if selector == "#procesar_todo_auto":
+                    return self.update_all
+                if selector == "button.btn_actualizar.btn-info":
+                    return self.update_buttons
+                if selector == "#btn_siguiente":
+                    return self.next_button
+                if selector == "body":
+                    return self.body
+                return StubLocator(count=0, visible=False)
+
+            def evaluate(self, script):
+                self.evaluate_calls.append(script)
+                return 3
+
+        config = type(
+            "Config",
+            (),
+            {"timeout_ms": 1000, "debug_enabled": False},
+        )()
+        page = StubPage()
+
+        _refresh_online_updates_if_available(
+            page,
+            config,
+            SearchRequest(cuit="20123456783", nombre=""),
+        )
+
+        self.assertEqual(len(page.evaluate_calls), 1)
+        self.assertIn("fns_afip_aportes_ajax.php", page.evaluate_calls[0])
+        self.assertIn("fns_anses_ajax.php", page.evaluate_calls[0])
+        self.assertIn("fns_negativa_ajax.php", page.evaluate_calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,7 @@ RESULT_LINK_SELECTOR = "a.btn-sm.btn-info[data-href]"
 RESULTS_ROW_SELECTOR = "table tbody tr"
 NEXT_BUTTON_SELECTOR = "#btn_siguiente"
 UPDATE_ALL_SELECTOR = "#procesar_todo_auto"
+UPDATE_BUTTON_SELECTOR = "button.btn_actualizar.btn-info"
 EDICTS_TABLE_SELECTOR = "table.table.table-sm.table-striped.table-bordered"
 NO_RESULTS_SELECTOR = "text=No se encontraron"
 EDICTS_TABLE_TEXT = "Edictos judiciales"
@@ -638,6 +639,27 @@ def _refresh_online_updates_if_available(
                 _wait_online_updates_finished(page, config, request)
                 _log_event("consulta_quiebra_update_all_done", cuit=request.cuit, nombre=request.nombre)
                 return
+
+            update_buttons = page.locator(UPDATE_BUTTON_SELECTOR)
+            update_button_count = update_buttons.count()
+            if update_button_count > 0:
+                _log_event(
+                    "consulta_quiebra_individual_update_requests_start",
+                    cuit=request.cuit,
+                    nombre=request.nombre,
+                    button_count=update_button_count,
+                )
+                _debug_dump(page, config, "04_before_individual_updates", request)
+                update_results = _run_visible_online_update_requests(page)
+                _log_event(
+                    "consulta_quiebra_individual_update_requests_done",
+                    cuit=request.cuit,
+                    nombre=request.nombre,
+                    button_count=update_button_count,
+                    results=update_results,
+                )
+                _debug_dump(page, config, "05_after_individual_update_requests", request)
+                return
         except Exception:
             _debug_dump(page, config, "update_all_error", request)
             raise
@@ -683,6 +705,88 @@ def _wait_online_updates_finished(
     raise TimeoutError(
         f"Timed out waiting for CredixSA online updates to finish. "
         f"cuit={request.cuit!r} nombre={request.nombre!r}"
+    )
+
+
+def _run_visible_online_update_requests(page: "Page") -> list[dict[str, Any]]:
+    return page.evaluate(
+        """
+        async () => {
+            const updates = [
+                {
+                    selector: '#actualizar_anses',
+                    name: 'anses',
+                    url: 'fns_anses_ajax.php',
+                    params: {process_anses: '1', anses_captcha_value: ''},
+                },
+                {
+                    selector: '#actualizar_afip_aportes',
+                    name: 'afip_aportes',
+                    url: 'fns_afip_aportes_ajax.php',
+                    params: {get_afipma_auto: '1', manual_update: '1'},
+                },
+                {
+                    selector: '#actualizar_afip_pa',
+                    name: 'afip_pa',
+                    url: 'get_afippa_captcha.php',
+                    params: {get_afippa_captcha: '1'},
+                },
+                {
+                    selector: '#actualizar_afip',
+                    name: 'afip',
+                    url: 'fns_afip_ajax.php',
+                    params: {get_afip_captcha: '1'},
+                },
+                {
+                    selector: '#actualizar_bcra',
+                    name: 'bcra',
+                    url: 'fns_bcra_ajax.php',
+                    params: {get_bcra_captcha: '1'},
+                },
+                {
+                    selector: '#actualizar_negativa',
+                    name: 'negativa',
+                    url: 'fns_negativa_ajax.php',
+                    params: {process_negativa: '1'},
+                },
+            ].filter((update) => document.querySelector(update.selector));
+
+            const results = [];
+            for (const update of updates) {
+                try {
+                    const response = await fetch(update.url, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new URLSearchParams(update.params).toString(),
+                    });
+                    const text = await response.text();
+                    let payload = null;
+                    try {
+                        payload = JSON.parse(text);
+                    } catch (error) {
+                        payload = text.slice(0, 200);
+                    }
+                    results.push({
+                        name: update.name,
+                        ok: response.ok,
+                        status: response.status,
+                        payload,
+                    });
+                } catch (error) {
+                    results.push({
+                        name: update.name,
+                        ok: false,
+                        error: String(error),
+                    });
+                }
+            }
+            return results;
+        }
+        """
     )
 
 
