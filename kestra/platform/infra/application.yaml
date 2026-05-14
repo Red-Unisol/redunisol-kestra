@@ -23,6 +23,9 @@ kestra:
   tasks:
     tmp-dir:
       path: /tmp/kestra-wd/tmp
+    scripts:
+      docker:
+        volume-enabled: true
   url: ${KESTRA_PUBLIC_URL}
   anonymous-usage-report:
     enabled: false
