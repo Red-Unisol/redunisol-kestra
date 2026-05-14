@@ -51,6 +51,17 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
 
         self.assertEqual(result.isoformat(), "2026-05-01T09:00:00-03:00")
 
+    def test_future_promise_send_time_only_uses_future_calendar_dates(self) -> None:
+        with patch.dict(os.environ, self.env, clear=False):
+            fake_now = datetime.fromisoformat("2026-04-17T10:00:00-03:00")
+            future = service.future_promise_send_time("2026-04-20", reference_dt=fake_now)
+            today = service.future_promise_send_time("2026-04-17", reference_dt=fake_now)
+            past = service.future_promise_send_time("2026-04-16", reference_dt=fake_now)
+
+        self.assertEqual(future.isoformat(), "2026-04-20T09:00:00-03:00")
+        self.assertIsNone(today)
+        self.assertIsNone(past)
+
     def test_parse_bitrix_date_without_timezone_uses_local_timezone(self) -> None:
         with patch.dict(os.environ, self.env, clear=False):
             result = service.parse_bitrix_datetime("2026-04-25")
@@ -136,8 +147,67 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
             plan["actions"][0]["message_id"],
             plan["actions"][0]["action_key"],
         )
+        self.assertEqual(plan["actions"][0]["due_at"], "2026-04-17T10:00:00-03:00")
         self.assertEqual(plan["actions"][1]["depends_on_order"], 1)
         self.assertEqual(plan["actions"][2]["depends_on_order"], 2)
+
+    def test_build_stage_plan_delays_reminder_when_promise_date_is_future(self) -> None:
+        stage_cfg = {
+            "name": "RECORDATORIO DE PROMESA",
+            "template_id": 51765,
+            "second_template_id": 51770,
+            "send_on_future_promise_date": True,
+            "second_wait_hours": 8,
+            "final_wait_hours": 8,
+            "next_stage_if_no_response": "C11:LOSE",
+        }
+
+        with patch.dict(os.environ, self.env, clear=False):
+            fake_now = datetime.fromisoformat("2026-04-17T10:00:00-03:00")
+            with patch.object(kestra_webhook_entrypoint.service, "get_now", return_value=fake_now):
+                plan = kestra_webhook_entrypoint.build_stage_plan(
+                    {
+                        "ID": "123",
+                        "STAGE_ID": "C11:UC_6KG2Z3",
+                        "UF_CRM_1724427951": "2026-04-20",
+                    },
+                    "C11:UC_6KG2Z3",
+                    stage_cfg,
+                )
+
+        self.assertEqual(plan["plan_kind"], "future_promise_reminder")
+        self.assertEqual(plan["actions"][0]["due_at"], "2026-04-20T09:00:00-03:00")
+        self.assertEqual(plan["actions"][1]["due_at"], "2026-04-20T17:00:00-03:00")
+        self.assertEqual(plan["actions"][2]["due_at"], "2026-04-21T17:00:00-03:00")
+
+    def test_build_stage_plan_keeps_immediate_reminder_when_promise_date_is_not_future(self) -> None:
+        stage_cfg = {
+            "name": "RECORDATORIO DE PROMESA",
+            "template_id": 51765,
+            "second_template_id": 51770,
+            "send_on_future_promise_date": True,
+            "second_wait_hours": 8,
+            "final_wait_hours": 8,
+            "next_stage_if_no_response": "C11:LOSE",
+        }
+
+        with patch.dict(os.environ, self.env, clear=False):
+            fake_now = datetime.fromisoformat("2026-04-17T10:00:00-03:00")
+            with patch.object(kestra_webhook_entrypoint.service, "get_now", return_value=fake_now):
+                plan = kestra_webhook_entrypoint.build_stage_plan(
+                    {
+                        "ID": "123",
+                        "STAGE_ID": "C11:UC_6KG2Z3",
+                        "UF_CRM_1724427951": "2026-04-17",
+                    },
+                    "C11:UC_6KG2Z3",
+                    stage_cfg,
+                )
+
+        self.assertEqual(plan["plan_kind"], "double_send_then_move")
+        self.assertEqual(plan["actions"][0]["due_at"], "2026-04-17T10:00:00-03:00")
+        self.assertEqual(plan["actions"][1]["due_at"], "2026-04-20T10:00:00-03:00")
+        self.assertEqual(plan["actions"][2]["due_at"], "2026-04-21T10:00:00-03:00")
 
     def test_build_stage_plan_includes_stage_cycle_in_keys_when_available(self) -> None:
         stage_cfg = {

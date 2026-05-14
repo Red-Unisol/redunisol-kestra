@@ -29,6 +29,7 @@
       "name": "RECORDATORIO DE PROMESA",
       "template_id": 51765,
       "second_template_id": 51770,
+      "send_on_future_promise_date": true,
       "second_wait_hours": 8,
       "final_wait_hours": 8,
       "next_stage_if_no_response": "C11:LOSE"

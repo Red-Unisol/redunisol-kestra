@@ -420,19 +420,7 @@ def add_business_hours(start_dt: datetime, hours: float) -> datetime:
 
 
 def promise_send_time(raw_value: str | None) -> datetime | None:
-    raw = str(raw_value or "").strip()
-    if not raw:
-        return None
-
-    # Bitrix date custom fields can arrive serialized as midnight with a foreign
-    # offset (for example 2026-05-01T03:00:00+03:00) even when the business
-    # meaning is "calendar date in local timezone". Preserve the calendar day.
-    date_match = re.match(r"^(\d{4}-\d{2}-\d{2})", raw)
-    if date_match:
-        parsed = parse_bitrix_datetime(date_match.group(1))
-    else:
-        parsed = parse_bitrix_datetime(raw)
-
+    parsed = parse_promise_calendar_datetime(raw_value)
     if not parsed:
         return None
 
@@ -445,6 +433,32 @@ def promise_send_time(raw_value: str | None) -> datetime | None:
         microsecond=0,
     )
     return next_business_start(run_at)
+
+
+def future_promise_send_time(raw_value: str | None, reference_dt: datetime | None = None) -> datetime | None:
+    parsed = parse_promise_calendar_datetime(raw_value)
+    if not parsed:
+        return None
+
+    reference = (reference_dt or get_now()).astimezone(get_local_tz())
+    if parsed.astimezone(get_local_tz()).date() <= reference.date():
+        return None
+
+    return promise_send_time(raw_value)
+
+
+def parse_promise_calendar_datetime(raw_value: str | None) -> datetime | None:
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return None
+
+    # Bitrix date custom fields can arrive serialized as midnight with a foreign
+    # offset (for example 2026-05-01T03:00:00+03:00) even when the business
+    # meaning is "calendar date in local timezone". Preserve the calendar day.
+    date_match = re.match(r"^(\d{4}-\d{2}-\d{2})", raw)
+    if date_match:
+        return parse_bitrix_datetime(date_match.group(1))
+    return parse_bitrix_datetime(raw)
 
 
 def seconds_between(start_dt: datetime, end_dt: datetime) -> int:
