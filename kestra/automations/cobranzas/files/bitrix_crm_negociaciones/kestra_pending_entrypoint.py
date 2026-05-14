@@ -259,6 +259,7 @@ def handle_pending_action() -> Dict[str, Any]:
             status="error",
             reason=exc.reason,
             processed_at=now.isoformat(),
+            message=exc.message,
         )
         return _result(
             ok=False,

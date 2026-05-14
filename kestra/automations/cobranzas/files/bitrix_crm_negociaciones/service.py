@@ -161,14 +161,24 @@ def update_deal_stage(deal_id: str, next_stage: str) -> Dict[str, Any]:
     return bitrix_call("crm.deal.update", {"ID": deal_id, "fields": {"STAGE_ID": next_stage}})
 
 
-def build_action_key(deal_id: str, stage_id: str, order: int) -> str:
-    safe_stage = str(stage_id or "").replace(":", "_")
-    return f"bitrix_crm_negociaciones.deal.{deal_id}.stage.{safe_stage}.action_{order}"
+def build_stage_cycle_id(deal: Dict[str, Any]) -> str:
+    return sanitize_key_segment(str(deal.get("MOVED_TIME") or ""))
 
 
-def build_plan_key(deal_id: str, stage_id: str) -> str:
+def sanitize_key_segment(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_")
+
+
+def build_action_key(deal_id: str, stage_id: str, order: int, stage_cycle_id: str = "") -> str:
     safe_stage = str(stage_id or "").replace(":", "_")
-    return f"bitrix_crm_negociaciones.deal.{deal_id}.stage.{safe_stage}.plan"
+    cycle_part = f".cycle.{stage_cycle_id}" if stage_cycle_id else ""
+    return f"bitrix_crm_negociaciones.deal.{deal_id}.stage.{safe_stage}{cycle_part}.action_{order}"
+
+
+def build_plan_key(deal_id: str, stage_id: str, stage_cycle_id: str = "") -> str:
+    safe_stage = str(stage_id or "").replace(":", "_")
+    cycle_part = f".cycle.{stage_cycle_id}" if stage_cycle_id else ""
+    return f"bitrix_crm_negociaciones.deal.{deal_id}.stage.{safe_stage}{cycle_part}.plan"
 
 
 def build_pending_action(
@@ -182,13 +192,15 @@ def build_pending_action(
     template_id: str = "",
     next_stage: str = "",
     depends_on_order: int = 0,
+    stage_cycle_id: str = "",
 ) -> Dict[str, Any]:
     now = get_now().isoformat()
-    key = build_action_key(deal_id, expected_stage, order)
+    key = build_action_key(deal_id, expected_stage, order, stage_cycle_id)
     return {
         "action_key": key,
         "deal_id": deal_id,
         "expected_stage": expected_stage,
+        "stage_cycle_id": stage_cycle_id,
         "stage_name": stage_name,
         "order": order,
         "action_kind": action_kind,
@@ -214,13 +226,15 @@ def build_plan(
     stage_name: str,
     plan_kind: str,
     actions: list[Dict[str, Any]],
+    stage_cycle_id: str = "",
     status: str = "draft",
 ) -> Dict[str, Any]:
     now = get_now().isoformat()
     return {
-        "key": build_plan_key(deal_id, expected_stage),
+        "key": build_plan_key(deal_id, expected_stage, stage_cycle_id),
         "deal_id": deal_id,
         "expected_stage": expected_stage,
+        "stage_cycle_id": stage_cycle_id,
         "stage_name": stage_name,
         "plan_kind": plan_kind,
         "status": status,
@@ -279,6 +293,7 @@ def finalize_action(
     reason: str,
     processed_at: str,
     edna_status: str = "",
+    message: str = "",
 ) -> Dict[str, Any]:
     updated = dict(action)
     updated["status"] = status
@@ -287,6 +302,8 @@ def finalize_action(
     updated["updated_at"] = processed_at
     if edna_status:
         updated["edna_status"] = edna_status
+    if message:
+        updated["message"] = message
     return updated
 
 
@@ -613,9 +630,10 @@ def send_to_edna_with_message_id(
     except requests.HTTPError as exc:
         status_code = exc.response.status_code if exc.response is not None else 0
         reason = "edna_http_error"
+        message = build_edna_http_error_message(exc, payload)
         if status_code == 429 or status_code >= 500:
-            raise RetryableActionError(reason, str(exc)) from exc
-        raise TerminalActionError(reason, str(exc)) from exc
+            raise RetryableActionError(reason, message) from exc
+        raise TerminalActionError(reason, message) from exc
 
     try:
         body = response.json()
@@ -627,3 +645,27 @@ def send_to_edna_with_message_id(
         "payload": payload,
         "response": body,
     }
+
+
+def build_edna_http_error_message(exc: requests.HTTPError, payload: Dict[str, Any]) -> str:
+    response = exc.response
+    status_code = response.status_code if response is not None else 0
+    body = response_body_preview(response)
+    context = {
+        "messageId": payload.get("messageId"),
+        "templateId": payload.get("templateId"),
+        "phone": payload.get("phone"),
+    }
+    return (
+        f"EDNA HTTP {status_code}: {body}; "
+        f"request={json.dumps(context, ensure_ascii=True, sort_keys=True)}"
+    )
+
+
+def response_body_preview(response: requests.Response | None, limit: int = 1000) -> str:
+    if response is None:
+        return ""
+    text = response.text or ""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "...<truncated>"

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import os
+import requests
 import sys
 import unittest
 from unittest.mock import patch
@@ -137,6 +138,35 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
         self.assertEqual(plan["actions"][1]["depends_on_order"], 1)
         self.assertEqual(plan["actions"][2]["depends_on_order"], 2)
 
+    def test_build_stage_plan_includes_stage_cycle_in_keys_when_available(self) -> None:
+        stage_cfg = {
+            "name": "CLIENTE CON INTENCION DE DIALOGO",
+            "template_id": 52885,
+            "wait_hours_no_response": 8,
+            "next_stage_if_no_response": "C11:APOLOGY",
+        }
+
+        with patch.dict(os.environ, self.env, clear=False):
+            fake_now = datetime.fromisoformat("2026-04-17T10:00:00-03:00")
+            with patch.object(kestra_webhook_entrypoint.service, "get_now", return_value=fake_now):
+                plan = kestra_webhook_entrypoint.build_stage_plan(
+                    {
+                        "ID": "123",
+                        "STAGE_ID": "C11:UC_VO2IJO",
+                        "MOVED_TIME": "2026-05-13T12:00:21+00:00",
+                    },
+                    "C11:UC_VO2IJO",
+                    stage_cfg,
+                )
+
+        self.assertIn(".cycle.2026_05_13T12_00_21_00_00.", plan["plan"]["key"])
+        self.assertIn(".cycle.2026_05_13T12_00_21_00_00.", plan["actions"][0]["action_key"])
+        self.assertEqual(plan["actions"][0]["message_id"], plan["actions"][0]["action_key"])
+        self.assertEqual(
+            plan["legacy_plan_key"],
+            "bitrix_crm_negociaciones.deal.123.stage.C11_UC_VO2IJO.plan",
+        )
+
     def test_pending_entrypoint_waits_if_dependency_is_pending(self) -> None:
         plan = {
             "key": "bitrix_crm_negociaciones.deal.1.stage.C11_PREPARATION.plan",
@@ -262,6 +292,43 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
                 kestra_pending_entrypoint.handle_pending_action()
 
         self.assertEqual(exc.exception.reason, "plan_not_ready")
+
+    def test_send_to_edna_http_error_includes_response_body_and_request_context(self) -> None:
+        response = requests.Response()
+        response.status_code = 400
+        response.url = "https://app.edna.io/api/v1/out-messages/whatsapp/template"
+        response._content = b'{"message":"Duplicate messageId"}'
+
+        env = {
+            **self.env,
+            "EDNA_URL": "https://app.edna.io/api/v1/out-messages/whatsapp/template",
+            "EDNA_SENDER": "5493513105768_WA",
+            "EDNA_API_KEY": "secret",
+            "EDNA_TIMEOUT_SECONDS": "15",
+        }
+        deal = {"ID": "123", "UF_CRM_1724429048": "1000|ARS"}
+        contact_data = {
+            "NAME": "ANA",
+            "LAST_NAME": "PEREZ",
+            "PHONE": [{"VALUE": "+5493510000000"}],
+        }
+
+        with patch.dict(os.environ, env, clear=False):
+            with patch.object(service.requests, "post", return_value=response):
+                with self.assertRaises(service.TerminalActionError) as exc:
+                    service.send_to_edna_with_message_id(
+                        template_id=51765,
+                        deal=deal,
+                        contact_data=contact_data,
+                        message_id="stable-id",
+                    )
+
+        self.assertEqual(exc.exception.reason, "edna_http_error")
+        self.assertIn("EDNA HTTP 400", exc.exception.message)
+        self.assertIn("Duplicate messageId", exc.exception.message)
+        self.assertIn('"messageId": "stable-id"', exc.exception.message)
+        self.assertIn('"templateId": 51765', exc.exception.message)
+        self.assertIn('"phone": "5493510000000"', exc.exception.message)
 
 
 if __name__ == "__main__":
