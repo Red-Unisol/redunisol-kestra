@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 from . import service
 
+SUPPORTED_EVENTS = {"ONCRMDEALADD", "ONCRMDEALUPDATE"}
+
 try:
     from kestra import Kestra
 except ImportError:  # pragma: no cover - optional outside Kestra
@@ -46,8 +48,8 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
         return _result(ok=False, action="invalid_token", reason="invalid_token")
 
     event = service.get_value(form, "event", ("event",))
-    if event and event != "ONCRMDEALUPDATE":
-        return _result(ok=True, action="ignored", reason="event_not_deal_update")
+    if event and event not in SUPPORTED_EVENTS:
+        return _result(ok=True, action="ignored", reason="event_not_supported")
 
     deal_id = service.get_value(form, "data[FIELDS][ID]", ("data", "FIELDS", "ID"))
     if not deal_id:

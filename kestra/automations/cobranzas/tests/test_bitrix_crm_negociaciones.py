@@ -167,6 +167,46 @@ class BitrixCrmNegociacionesTests(unittest.TestCase):
             "bitrix_crm_negociaciones.deal.123.stage.C11_UC_VO2IJO.plan",
         )
 
+    def test_process_webhook_plans_deal_add_event(self) -> None:
+        payload = {
+            "event": "ONCRMDEALADD",
+            "data[FIELDS][ID]": "123",
+        }
+        deal = {
+            "ID": "123",
+            "STAGE_ID": "C11:UC_VO2IJO",
+            "MOVED_TIME": "2026-05-13T12:00:21+00:00",
+        }
+
+        with patch.dict(os.environ, self.env, clear=False):
+            fake_now = datetime.fromisoformat("2026-04-17T10:00:00-03:00")
+            with patch.object(kestra_webhook_entrypoint.service, "get_now", return_value=fake_now):
+                with patch.object(
+                    kestra_webhook_entrypoint.service,
+                    "fetch_deal_with_contact",
+                    return_value=(deal, None),
+                ):
+                    result = kestra_webhook_entrypoint.process_webhook(payload)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["action"], "planned")
+        self.assertEqual(result["reason"], "send_then_move")
+        self.assertEqual(result["deal_id"], "123")
+        self.assertEqual(result["stage_id"], "C11:UC_VO2IJO")
+        self.assertEqual(result["planned_action_count"], "2")
+
+    def test_process_webhook_ignores_unsupported_event(self) -> None:
+        result = kestra_webhook_entrypoint.process_webhook(
+            {
+                "event": "ONCRMCONTACTADD",
+                "data[FIELDS][ID]": "123",
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["action"], "ignored")
+        self.assertEqual(result["reason"], "event_not_supported")
+
     def test_pending_entrypoint_waits_if_dependency_is_pending(self) -> None:
         plan = {
             "key": "bitrix_crm_negociaciones.deal.1.stage.C11_PREPARATION.plan",
