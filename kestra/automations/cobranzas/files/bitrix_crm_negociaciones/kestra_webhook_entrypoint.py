@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 from . import service
 
+SUPPORTED_EVENTS = {"ONCRMDEALADD", "ONCRMDEALUPDATE"}
+
 try:
     from kestra import Kestra
 except ImportError:  # pragma: no cover - optional outside Kestra
@@ -46,8 +48,8 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
         return _result(ok=False, action="invalid_token", reason="invalid_token")
 
     event = service.get_value(form, "event", ("event",))
-    if event and event != "ONCRMDEALUPDATE":
-        return _result(ok=True, action="ignored", reason="event_not_deal_update")
+    if event and event not in SUPPORTED_EVENTS:
+        return _result(ok=True, action="ignored", reason="event_not_supported")
 
     deal_id = service.get_value(form, "data[FIELDS][ID]", ("data", "FIELDS", "ID"))
     if not deal_id:
@@ -82,7 +84,23 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
             stage_id=stage_id,
         )
 
-    plan = build_stage_plan(deal_data, stage_id, stage_cfg)
+    if event == "ONCRMDEALUPDATE" and not prev_stage_id and not service.build_stage_cycle_id(deal_data):
+        return _result(
+            ok=True,
+            action="ignored",
+            reason="stage_change_not_detected",
+            deal_id=str(deal_id),
+            stage_id=stage_id,
+            stage_name=str(stage_cfg.get("name") or ""),
+        )
+
+    stage_cycle_fallback = _stage_cycle_fallback(form, event, prev_stage_id, stage_id)
+    plan = build_stage_plan(
+        deal_data,
+        stage_id,
+        stage_cfg,
+        stage_cycle_fallback=stage_cycle_fallback,
+    )
     return _result(
         ok=True,
         action="planned",
@@ -92,6 +110,7 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
         stage_name=str(stage_cfg.get("name") or ""),
         planned_action_count=str(len(plan["actions"])),
         plan_key=plan["plan"]["key"],
+        legacy_plan_key=plan["legacy_plan_key"],
         plan_json_draft=json.dumps(plan["plan"], ensure_ascii=True),
         plan_json_ready=json.dumps(plan["plan_ready"], ensure_ascii=True),
         action_1_enabled=bool(len(plan["actions"]) >= 1),
@@ -109,8 +128,14 @@ def process_webhook(payload: Any) -> Dict[str, Any]:
     )
 
 
-def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[str, Any]) -> Dict[str, Any]:
+def build_stage_plan(
+    deal_data: Dict[str, Any],
+    stage_id: str,
+    stage_cfg: Dict[str, Any],
+    stage_cycle_fallback: str = "",
+) -> Dict[str, Any]:
     now = service.get_now()
+    stage_cycle_id = service.build_stage_cycle_id(deal_data, fallback_value=stage_cycle_fallback)
     template_id = int(stage_cfg.get("template_id") or 0)
     second_template_id = int(stage_cfg.get("second_template_id") or 0)
     wait_hours = float(stage_cfg.get("wait_hours_no_response") or 0)
@@ -170,6 +195,7 @@ def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[s
             due_at=first_action_at,
             template_id=str(template_id),
             depends_on_order=0,
+            stage_cycle_id=stage_cycle_id,
         )
         actions.append(action)
         previous_order = int(action["order"])
@@ -184,6 +210,7 @@ def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[s
             due_at=second_action_at,
             template_id=str(second_template_id),
             depends_on_order=previous_order,
+            stage_cycle_id=stage_cycle_id,
         )
         actions.append(action)
         previous_order = int(action["order"])
@@ -198,6 +225,7 @@ def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[s
             due_at=move_at,
             next_stage=next_stage,
             depends_on_order=previous_order,
+            stage_cycle_id=stage_cycle_id,
         )
         actions.append(action)
 
@@ -207,14 +235,19 @@ def build_stage_plan(deal_data: Dict[str, Any], stage_id: str, stage_cfg: Dict[s
         stage_name=str(stage_cfg.get("name") or ""),
         plan_kind=plan_kind,
         actions=actions,
+        stage_cycle_id=stage_cycle_id,
         status="draft",
     )
     plan_ready = service.finalize_plan(plan, status="ready", updated_at=service.get_now().isoformat())
+    legacy_plan_key = service.build_plan_key(str(deal_data.get("ID") or ""), stage_id)
+    if legacy_plan_key == plan["key"]:
+        legacy_plan_key = ""
 
     return {
         "plan_kind": plan_kind,
         "plan": plan,
         "plan_ready": plan_ready,
+        "legacy_plan_key": legacy_plan_key,
         "actions": actions,
         "planned_first_action_at": first_action_at.isoformat() if first_action_at else "",
         "planned_second_action_at": second_action_at.isoformat() if second_action_at else "",
@@ -233,6 +266,7 @@ def _result(
     stage_name: str = "",
     planned_action_count: str = "0",
     plan_key: str = "",
+    legacy_plan_key: str = "",
     plan_json_draft: str = "",
     plan_json_ready: str = "",
     action_1_enabled: bool = False,
@@ -258,6 +292,7 @@ def _result(
         "stage_name": stage_name,
         "planned_action_count": planned_action_count,
         "plan_key": plan_key,
+        "legacy_plan_key": legacy_plan_key,
         "plan_json_draft": plan_json_draft,
         "plan_json_ready": plan_json_ready,
         "action_1_enabled": action_1_enabled,
@@ -274,6 +309,25 @@ def _result(
         "planned_move_at": planned_move_at,
         "payload_preview": "",
     }
+
+
+def _stage_cycle_fallback(
+    form: Dict[str, Any],
+    event: Any,
+    prev_stage_id: str,
+    stage_id: str,
+) -> str:
+    event_ts = str(service.get_value(form, "ts", ("ts",)) or "").strip()
+    if not event_ts:
+        return ""
+
+    if event == "ONCRMDEALADD":
+        return f"created_{event_ts}"
+
+    if event == "ONCRMDEALUPDATE" and prev_stage_id and prev_stage_id != stage_id:
+        return f"moved_{event_ts}"
+
+    return ""
 
 
 def _payload_preview(payload: Any) -> str:
