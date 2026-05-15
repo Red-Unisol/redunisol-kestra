@@ -703,12 +703,25 @@ function CredixDedicatedReport({ normalized }) {
             <CredixPersonPanel persona={normalized?.persona || {}} />
             <CredixBcraHistoryPanel bcra={normalized?.bcra || {}} />
             <CredixBcraEntityEvolutionPanel bcra={normalized?.bcra || {}} />
-            <CredixBcraPanel bcra={normalized?.bcra || {}} />
             <CredixPrevisionalHistoryPanel previsional={normalized?.previsional || {}} />
-            <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
             <CredixQuiebrasPanel quiebras={normalized?.quiebras || {}} />
-            <CredixAportesPanel aportes={normalized?.aportes || {}} />
+            <CredixSecondarySections normalized={normalized} />
         </div>
+    );
+}
+
+function CredixSecondarySections({ normalized }) {
+    return (
+        <details className="credix-report__details">
+            <summary>
+                <span>Ver secciones adicionales</span>
+            </summary>
+            <div className="credix-report__detailsBody">
+                <CredixBcraPanel bcra={normalized?.bcra || {}} />
+                <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
+                <CredixAportesPanel aportes={normalized?.aportes || {}} />
+            </div>
+        </details>
     );
 }
 
