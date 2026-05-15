@@ -167,6 +167,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
     normalized = result.get("normalized")
     if isinstance(normalized, dict):
         _ensure_bcra_24_months_payload(normalized, result.get("data") or [])
+        _ensure_bcra_entity_evolution_payload(normalized, result.get("data") or [])
         _ensure_previsional_employer_tables_payload(normalized, result.get("data") or [])
         return normalized
 
@@ -187,6 +188,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
             "deuda_vigente_total": "",
             "deudas_vigentes": [],
             "deudas_24_meses": {},
+            "evolucion_deuda_por_entidad": {},
             "historial_por_entidad": [],
             "entidades": [],
         },
@@ -290,6 +292,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
         payload["bcra"].get("deudas_24_meses"),
         payload["bcra"].get("deudas_vigentes") or [],
     )
+    _ensure_bcra_entity_evolution_payload(payload, sections)
     _ensure_previsional_employer_tables_payload(payload, sections)
     result["normalized"] = payload
     return payload
@@ -555,6 +558,28 @@ def _ensure_previsional_employer_tables_payload(payload: dict[str, Any], section
     previsional["situaciones_por_empleador"] = situations
 
 
+def _ensure_bcra_entity_evolution_payload(payload: dict[str, Any], sections: Any) -> None:
+    bcra = payload.get("bcra")
+    if not isinstance(bcra, dict):
+        return
+    if isinstance(bcra.get("evolucion_deuda_por_entidad"), dict) and bcra["evolucion_deuda_por_entidad"]:
+        return
+    if not isinstance(sections, list):
+        return
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        title = normalize_name(section.get("title"))
+        match_title = normalize_name(_normalized_label(title).replace("-", " "))
+        if not match_title.startswith("evolucion deuda sistema financiero por entidad"):
+            continue
+        matrix = _normalize_bcra_entity_evolution(section, bcra.get("deudas_24_meses"))
+        if matrix:
+            bcra["evolucion_deuda_por_entidad"] = matrix
+        return
+
+
 def _normalize_bcra_24_months(section: dict[str, Any]) -> dict[str, Any]:
     rows = _section_rows(section)
     if len(rows) < 4:
@@ -678,6 +703,130 @@ def _normalize_bcra_history(section: dict[str, Any]) -> list[dict[str, Any]]:
         }
         history.append({"periodo": period, "entidades": entities})
     return history
+
+
+def _normalize_bcra_entity_evolution(section: dict[str, Any], monthly_matrix: Any) -> dict[str, Any]:
+    rows = _section_rows(section)
+    if len(rows) < 3 or len(rows[1]) < 2:
+        return {}
+
+    entities = rows[1][1:]
+    if not entities:
+        return {}
+
+    matrix_rows = monthly_matrix.get("filas") if isinstance(monthly_matrix, dict) else []
+    period_situations = _build_bcra_period_situations(monthly_matrix)
+    matched_rows = {
+        entity: _match_bcra_entity_row(entity, matrix_rows)
+        for entity in entities
+    }
+
+    history_rows: list[dict[str, Any]] = []
+    for row in rows[2:]:
+        if len(row) < 2 or not re.fullmatch(r"\d{2}/\d{4}", row[0]):
+            continue
+
+        period = row[0]
+        amounts = row[1:]
+        active_entities = [
+            entity
+            for entity in entities
+            if period_situations.get(period, {}).get(_normalized_label(matched_rows.get(entity, {}).get("entidad")))
+            not in {"", "-"}
+        ]
+
+        amount_by_entity: dict[str, str] = {}
+        if len(amounts) == len(entities):
+            amount_by_entity = dict(zip(entities, amounts))
+        elif len(active_entities) == len(amounts):
+            amount_by_entity = dict(zip(active_entities, amounts))
+        else:
+            amount_by_entity = dict(zip(active_entities or entities, amounts))
+
+        cells = []
+        for entity in entities:
+            matched_entity = _normalized_label(matched_rows.get(entity, {}).get("entidad"))
+            situation = period_situations.get(period, {}).get(matched_entity, "")
+            cells.append(
+                {
+                    "entidad": entity,
+                    "monto": amount_by_entity.get(entity, ""),
+                    "situacion": situation,
+                }
+            )
+        history_rows.append({"periodo": period, "celdas": cells})
+
+    if not history_rows:
+        return {}
+
+    return {
+        "titulo": normalize_name(section.get("title")),
+        "fuente": normalize_name(section.get("source")),
+        "entidades": entities,
+        "filas": history_rows,
+    }
+
+
+def _build_bcra_period_situations(matrix: Any) -> dict[str, dict[str, str]]:
+    if not isinstance(matrix, dict):
+        return {}
+
+    months = matrix.get("meses")
+    years = matrix.get("anios")
+    rows = matrix.get("filas")
+    if not isinstance(months, list) or not isinstance(years, list) or not isinstance(rows, list):
+        return {}
+
+    period_labels: list[str] = []
+    month_index = 0
+    for year in years:
+        if not isinstance(year, dict):
+            continue
+        label = normalize_name(year.get("anio"))
+        span = int(year.get("span") or 0)
+        for month in months[month_index : month_index + span]:
+            month_number = _month_number(month)
+            if label and month_number:
+                period_labels.append(f"{month_number:02d}/{label}")
+            month_index += 1
+
+    situations: dict[str, dict[str, str]] = {period: {} for period in period_labels}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        entity = _normalized_label(row.get("entidad"))
+        row_situations = row.get("situaciones")
+        if not entity or not isinstance(row_situations, list):
+            continue
+        for index, period in enumerate(period_labels):
+            if index < len(row_situations):
+                situations[period][entity] = normalize_name(row_situations[index])
+    return situations
+
+
+def _match_bcra_entity_row(entity: str, rows: Any) -> dict[str, Any]:
+    if not isinstance(rows, list):
+        return {}
+
+    normalized_entity = _normalized_label(entity)
+    best_row: dict[str, Any] = {}
+    best_score = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        normalized_candidate = _normalized_label(row.get("entidad"))
+        if not normalized_candidate:
+            continue
+        if normalized_entity == normalized_candidate:
+            return row
+        if normalized_entity in normalized_candidate or normalized_candidate in normalized_entity:
+            score = max(len(normalized_entity.split()), len(normalized_candidate.split()))
+        else:
+            score = len(set(normalized_entity.split()) & set(normalized_candidate.split()))
+        if score > best_score:
+            best_row = row
+            best_score = score
+    return best_row if best_score > 0 else {}
 
 
 def _normalize_bcra_entities(section: dict[str, Any]) -> list[dict[str, str]]:

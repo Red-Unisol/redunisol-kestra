@@ -254,6 +254,66 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         self.assertTrue(history["filas"][0]["activa"])
         self.assertFalse(history["filas"][1]["activa"])
 
+    def test_build_output_payload_normalizes_bcra_entity_evolution_matrix(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20284049846", nombre=""),
+            [
+                {
+                    "index": 1,
+                    "title": "Deudas en el Sistema Financiero (Ultimos 24 meses publicados) Fuente: BCRA",
+                    "source": "BCRA",
+                    "headers": ["Entidad", "2026", "2025", "Ultimo monto informado", "Obs."],
+                    "rows": [
+                        ["Deudas en el Sistema Financiero (Ultimos 24 meses publicados) Fuente: BCRA"],
+                        ["Entidad", "2026", "2025", "Ultimo monto informado", "Obs."],
+                        ["Mar", "Feb", "Ene", "Dic"],
+                        ["GPAT COMPAÑIA FINANCIERA S.A.U.", "5", "5", "4", "4", "2.886.000"],
+                        ["BANCO DE LA PROVINCIA DE CORDOBA S.A.", "1", "1", "1", "1", "10.603.000"],
+                        ["CREDLAP S.A.", "-", "-", "-", "1", "317.000"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+                {
+                    "index": 2,
+                    "title": "Evolución deuda Sistema Financiero por Entidad Fuente: BCRA",
+                    "source": "BCRA",
+                    "headers": [
+                        "Período",
+                        "GPAT COMPAÑIA FINANCIERA",
+                        "BANCO PROVINCIA DE CORDOBA",
+                        "CREDLAP S.A.",
+                    ],
+                    "rows": [
+                        ["Evolución deuda Sistema Financiero por Entidad Fuente: BCRA"],
+                        [
+                            "Período",
+                            "GPAT COMPAÑIA FINANCIERA",
+                            "BANCO PROVINCIA DE CORDOBA",
+                            "CREDLAP S.A.",
+                        ],
+                        ["03/2026", "$ 2.886.000", "$ 10.603.000"],
+                        ["12/2025", "$ 2.886.000", "$ 10.990.000", "$ 317.000"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+            ],
+            cuit="20284049846",
+            nombre="GRAMOY ELIAS SAUL",
+        )
+
+        normalized = json.loads(build_output_payload(result)["normalized_json"])
+        evolution = normalized["bcra"]["evolucion_deuda_por_entidad"]
+
+        self.assertEqual(evolution["entidades"][1], "BANCO PROVINCIA DE CORDOBA")
+        self.assertEqual(evolution["filas"][0]["celdas"][0]["monto"], "$ 2.886.000")
+        self.assertEqual(evolution["filas"][0]["celdas"][1]["monto"], "$ 10.603.000")
+        self.assertEqual(evolution["filas"][0]["celdas"][2]["monto"], "")
+        self.assertEqual(evolution["filas"][1]["celdas"][2]["monto"], "$ 317.000")
+        self.assertEqual(evolution["filas"][0]["celdas"][0]["situacion"], "5")
+        self.assertEqual(evolution["filas"][0]["celdas"][1]["situacion"], "1")
+
     def test_build_output_payload_normalizes_previsional_employer_period_table(self) -> None:
         result = build_single_result(
             SearchRequest(cuit="20284049846", nombre=""),

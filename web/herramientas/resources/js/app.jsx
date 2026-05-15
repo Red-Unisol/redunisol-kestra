@@ -702,6 +702,7 @@ function CredixDedicatedReport({ normalized }) {
         <div className="credix-report">
             <CredixPersonPanel persona={normalized?.persona || {}} />
             <CredixBcraHistoryPanel bcra={normalized?.bcra || {}} />
+            <CredixBcraEntityEvolutionPanel bcra={normalized?.bcra || {}} />
             <CredixBcraPanel bcra={normalized?.bcra || {}} />
             <CredixPrevisionalHistoryPanel previsional={normalized?.previsional || {}} />
             <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
@@ -743,6 +744,9 @@ function CredixPersonPanel({ persona }) {
 
 function CredixBcraPanel({ bcra }) {
     const history = Array.isArray(bcra.historial_por_entidad) ? bcra.historial_por_entidad : [];
+    const detailedHistoryRows = Array.isArray(bcra.evolucion_deuda_por_entidad?.filas)
+        ? bcra.evolucion_deuda_por_entidad.filas
+        : [];
     const entities = Array.isArray(bcra.entidades) ? bcra.entidades : [];
     const activeDebts = Array.isArray(bcra.deudas_vigentes) ? bcra.deudas_vigentes : [];
 
@@ -781,7 +785,7 @@ function CredixBcraPanel({ bcra }) {
                 />
             )}
 
-            {history.length > 0 && (
+            {history.length > 0 && detailedHistoryRows.length === 0 && (
                 <div className="credix-report__stack">
                     <h3>Historial por entidad</h3>
                     {history.slice(0, 6).map((period, index) => (
@@ -858,6 +862,54 @@ function CredixBcraHistoryPanel({ bcra }) {
                     <strong> 4</strong> alto riesgo, <strong>5</strong> irrecuperable, <strong>6</strong> irrecuperable por disposicion tecnica,
                     <strong> N/D</strong> no disponible.
                 </p>
+            </div>
+        </section>
+    );
+}
+
+function CredixBcraEntityEvolutionPanel({ bcra }) {
+    const matrix = bcra?.evolucion_deuda_por_entidad || {};
+    const entities = Array.isArray(matrix.entidades) ? matrix.entidades : [];
+    const rows = Array.isArray(matrix.filas) ? matrix.filas : [];
+
+    if (entities.length === 0 || rows.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="credix-report__section credix-report__section--primary">
+            <div className="credix-report__sectionHeader">
+                <h2>Evolucion deuda sistema financiero por entidad</h2>
+                <span className="credix-risk">{matrix.fuente ? `Fuente: ${matrix.fuente}` : 'BCRA'}</span>
+            </div>
+            <div className="credix-bcra-evolution">
+                <div className="credix-bcra-evolution__wrap">
+                    <table className="credix-bcra-evolution__table">
+                        <thead>
+                            <tr>
+                                <th>Periodo</th>
+                                {entities.map((entity, index) => (
+                                    <th key={`${entity}-${index}`}>{entity}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, rowIndex) => (
+                                <tr key={`${row.periodo || 'periodo'}-${rowIndex}`}>
+                                    <th scope="row">{row.periodo || '-'}</th>
+                                    {(Array.isArray(row.celdas) ? row.celdas : []).map((cell, cellIndex) => (
+                                        <td
+                                            className={`credix-bcra-evolution__cell credix-bcra-evolution__cell--${getBcraSituationClass(cell.situacion)}`}
+                                            key={`${rowIndex}-${cellIndex}`}
+                                        >
+                                            {cell.monto || ''}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
     );
