@@ -1007,6 +1007,100 @@ input {
     font-size: 0.84rem;
 }
 
+.credix-previsional-history {
+    display: grid;
+    gap: 14px;
+}
+
+.credix-previsional-history__block {
+    display: grid;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid rgba(27, 47, 87, 0.1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.credix-previsional-history__titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    color: #fff;
+    background: #247dd1;
+    font-size: 0.84rem;
+}
+
+.credix-previsional-history__titlebar strong {
+    font-weight: 800;
+}
+
+.credix-previsional-history__titlebar span {
+    font-weight: 700;
+}
+
+.credix-previsional-history__meta {
+    display: grid;
+}
+
+.credix-previsional-history__meta > div {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    border-bottom: 1px solid rgba(27, 47, 87, 0.08);
+}
+
+.credix-previsional-history__meta span,
+.credix-previsional-history__meta strong {
+    min-height: 34px;
+    padding: 8px 12px;
+    line-height: 1.4;
+    font-size: 0.82rem;
+}
+
+.credix-previsional-history__meta span {
+    background: #d9ebfb;
+    color: var(--navy);
+    font-weight: 800;
+}
+
+.credix-previsional-history__meta strong {
+    font-weight: 600;
+}
+
+.credix-previsional-history__wrap {
+    overflow-x: auto;
+}
+
+.credix-previsional-history__table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+}
+
+.credix-previsional-history__table th,
+.credix-previsional-history__table td {
+    padding: 8px 10px;
+    border: 1px solid rgba(27, 47, 87, 0.09);
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+.credix-previsional-history__table thead th {
+    color: #fff;
+    background: #247dd1;
+    font-weight: 800;
+}
+
+.credix-previsional-history__table tbody tr:nth-child(even) {
+    background: rgba(27, 47, 87, 0.035);
+}
+
+.credix-previsional-history__yes {
+    color: #14904f;
+    font-weight: 800;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -1036,6 +1130,15 @@ input {
     .credix-page__status,
     .credix-page__miniMetrics {
         width: 100%;
+    }
+
+    .credix-previsional-history__titlebar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .credix-previsional-history__meta > div {
+        grid-template-columns: 1fr;
     }
 }
 

@@ -167,6 +167,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
     normalized = result.get("normalized")
     if isinstance(normalized, dict):
         _ensure_bcra_24_months_payload(normalized, result.get("data") or [])
+        _ensure_previsional_employer_tables_payload(normalized, result.get("data") or [])
         return normalized
 
     payload = {
@@ -193,6 +194,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
             "mensaje": "",
             "registraciones": [],
             "empleadores": [],
+            "situaciones_por_empleador": [],
             "obra_sociales": [],
         },
         "aportes": {
@@ -288,6 +290,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
         payload["bcra"].get("deudas_24_meses"),
         payload["bcra"].get("deudas_vigentes") or [],
     )
+    _ensure_previsional_employer_tables_payload(payload, sections)
     result["normalized"] = payload
     return payload
 
@@ -511,6 +514,43 @@ def _ensure_bcra_24_months_payload(payload: dict[str, Any], sections: Any) -> No
         return
 
 
+def _ensure_previsional_employer_tables_payload(payload: dict[str, Any], sections: Any) -> None:
+    previsional = payload.get("previsional")
+    if not isinstance(previsional, dict):
+        return
+    if isinstance(previsional.get("situaciones_por_empleador"), list) and previsional["situaciones_por_empleador"]:
+        return
+    if not isinstance(sections, list):
+        return
+
+    situations: list[dict[str, Any]] = []
+    for index, section in enumerate(sections):
+        if not isinstance(section, dict):
+            continue
+
+        title = normalize_name(section.get("title"))
+        match_title = normalize_name(_normalized_label(title).replace("-", " "))
+        if not match_title.startswith("situacion previsional empleador"):
+            continue
+
+        employer = _normalize_previsional_employer(title, _section_key_values(section))
+        next_section = sections[index + 1] if index + 1 < len(sections) else None
+        periods = _normalize_previsional_period_table(next_section) if isinstance(next_section, dict) else []
+        if not employer or not periods:
+            continue
+
+        situations.append(
+            {
+                "indice": employer.get("indice", ""),
+                "fuente": normalize_name(section.get("source")),
+                "empleador": employer,
+                "periodos": periods,
+            }
+        )
+
+    previsional["situaciones_por_empleador"] = situations
+
+
 def _normalize_bcra_24_months(section: dict[str, Any]) -> dict[str, Any]:
     rows = _section_rows(section)
     if len(rows) < 4:
@@ -681,6 +721,38 @@ def _normalize_previsional_employer(title: str, values: dict[str, str]) -> dict[
         "domicilio": values.get("Domicilio", ""),
     }
     return {key: value for key, value in employer.items() if value}
+
+
+def _normalize_previsional_period_table(section: dict[str, Any] | None) -> list[dict[str, str]]:
+    if not isinstance(section, dict):
+        return []
+
+    rows = _section_rows(section)
+    header_index = next(
+        (
+            index
+            for index, row in enumerate(rows)
+            if len(row) >= 5 and row and _normalized_label(row[0]) == "periodo"
+        ),
+        None,
+    )
+    if header_index is None:
+        return []
+
+    periods: list[dict[str, str]] = []
+    for row in rows[header_index + 1 :]:
+        if len(row) < 5 or not re.fullmatch(r"\d{2}/\d{4}", row[0]):
+            continue
+        periods.append(
+            {
+                "periodo": row[0],
+                "incluido_declaracion_jurada": row[1],
+                "aportes_seguridad_social": row[2],
+                "aportes_obra_social": row[3],
+                "contribucion_patronal_obra_social": row[4],
+            }
+        )
+    return periods
 
 
 def _normalize_registration(title: str, rows: list[list[str]]) -> dict[str, str]:

@@ -254,6 +254,146 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         self.assertTrue(history["filas"][0]["activa"])
         self.assertFalse(history["filas"][1]["activa"])
 
+    def test_build_output_payload_normalizes_previsional_employer_period_table(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20284049846", nombre=""),
+            [
+                {
+                    "index": 25,
+                    "title": "Situación Previsional - Empleador 1 Fuente: Afip - Aportes en línea",
+                    "source": "Afip - Aportes en línea",
+                    "headers": [],
+                    "rows": [
+                        ["Situación Previsional - Empleador 1 Fuente: Afip - Aportes en línea"],
+                        ["Empleador", "33-99925244-9 - MINISTERIO DE EDUCACION"],
+                        [
+                            "Actividad",
+                            "SERVICIOS GENERALES DE LA ADMINISTRACIÓN PÚBLICA",
+                        ],
+                        [
+                            "Domicilio",
+                            "SANTA ROSA 751 Piso:3 - (5000) BARRIO CENTRO NORTE - CORDOBA",
+                        ],
+                    ],
+                    "records": [
+                        {"Empleador": "33-99925244-9 - MINISTERIO DE EDUCACION"},
+                        {"Actividad": "SERVICIOS GENERALES DE LA ADMINISTRACIÓN PÚBLICA"},
+                        {"Domicilio": "SANTA ROSA 751 Piso:3 - (5000) BARRIO CENTRO NORTE - CORDOBA"},
+                    ],
+                    "text": "",
+                },
+                {
+                    "index": 26,
+                    "title": "Período",
+                    "source": "",
+                    "headers": [
+                        "Período",
+                        "Incluído en declaración jurada",
+                        "Aportes de seguridad social",
+                        "Aportes de obra social",
+                        "Contribución patronal de obra social",
+                    ],
+                    "rows": [
+                        [
+                            "Período",
+                            "Incluído en declaración jurada",
+                            "Aportes de seguridad social",
+                            "Aportes de obra social",
+                            "Contribución patronal de obra social",
+                        ],
+                        ["04/2025", "SI", "INFORMATIVO", "INFORMATIVO", "INFORMATIVO"],
+                        ["05/2025", "SI", "INFORMATIVO", "INFORMATIVO", "INFORMATIVO"],
+                    ],
+                    "records": [
+                        {
+                            "Período": "04/2025",
+                            "Incluído en declaración jurada": "SI",
+                            "Aportes de seguridad social": "INFORMATIVO",
+                            "Aportes de obra social": "INFORMATIVO",
+                            "Contribución patronal de obra social": "INFORMATIVO",
+                        }
+                    ],
+                    "text": "",
+                },
+            ],
+            cuit="20284049846",
+            nombre="GRAMOY ELIAS SAUL",
+        )
+
+        normalized = json.loads(build_output_payload(result)["normalized_json"])
+        situations = normalized["previsional"]["situaciones_por_empleador"]
+
+        self.assertEqual(len(situations), 1)
+        self.assertEqual(situations[0]["indice"], "1")
+        self.assertEqual(situations[0]["fuente"], "Afip - Aportes en línea")
+        self.assertEqual(situations[0]["empleador"]["cuit"], "33999252449")
+        self.assertEqual(situations[0]["periodos"][0]["periodo"], "04/2025")
+        self.assertEqual(situations[0]["periodos"][0]["incluido_declaracion_jurada"], "SI")
+        self.assertEqual(
+            situations[0]["periodos"][1]["contribucion_patronal_obra_social"],
+            "INFORMATIVO",
+        )
+
+    def test_build_output_payload_enriches_cached_previsional_period_table(self) -> None:
+        result = {
+            "status": "single",
+            "cuit": "20284049846",
+            "nombre": "GRAMOY ELIAS SAUL",
+            "normalized": {
+                "persona": {},
+                "bcra": {},
+                "previsional": {
+                    "mensaje": "",
+                    "registraciones": [],
+                    "empleadores": [
+                        {
+                            "indice": "1",
+                            "cuit": "33999252449",
+                            "nombre": "MINISTERIO DE EDUCACION",
+                        }
+                    ],
+                    "obra_sociales": [],
+                },
+                "aportes": {},
+                "quiebras": {},
+            },
+            "data": [
+                {
+                    "index": 25,
+                    "title": "Situación Previsional - Empleador 1 Fuente: Afip - Aportes en línea",
+                    "source": "Afip - Aportes en línea",
+                    "rows": [
+                        ["Situación Previsional - Empleador 1 Fuente: Afip - Aportes en línea"],
+                        ["Empleador", "33-99925244-9 - MINISTERIO DE EDUCACION"],
+                    ],
+                    "records": [
+                        {"Empleador": "33-99925244-9 - MINISTERIO DE EDUCACION"},
+                    ],
+                },
+                {
+                    "index": 26,
+                    "title": "Período",
+                    "rows": [
+                        [
+                            "Período",
+                            "Incluído en declaración jurada",
+                            "Aportes de seguridad social",
+                            "Aportes de obra social",
+                            "Contribución patronal de obra social",
+                        ],
+                        ["03/2026", "SI", "INFORMATIVO", "INFORMATIVO", "INFORMATIVO"],
+                    ],
+                    "records": [],
+                },
+            ],
+        }
+
+        normalized = json.loads(build_output_payload(result)["normalized_json"])
+        situations = normalized["previsional"]["situaciones_por_empleador"]
+
+        self.assertEqual(len(situations), 1)
+        self.assertEqual(situations[0]["periodos"][0]["periodo"], "03/2026")
+
     def test_normalize_report_section_builds_key_value_records(self) -> None:
         section = _normalize_report_section(
             {

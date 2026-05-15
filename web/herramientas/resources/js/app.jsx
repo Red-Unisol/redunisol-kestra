@@ -703,6 +703,7 @@ function CredixDedicatedReport({ normalized }) {
             <CredixPersonPanel persona={normalized?.persona || {}} />
             <CredixBcraHistoryPanel bcra={normalized?.bcra || {}} />
             <CredixBcraPanel bcra={normalized?.bcra || {}} />
+            <CredixPrevisionalHistoryPanel previsional={normalized?.previsional || {}} />
             <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
             <CredixQuiebrasPanel quiebras={normalized?.quiebras || {}} />
             <CredixAportesPanel aportes={normalized?.aportes || {}} />
@@ -857,6 +858,85 @@ function CredixBcraHistoryPanel({ bcra }) {
                     <strong> 4</strong> alto riesgo, <strong>5</strong> irrecuperable, <strong>6</strong> irrecuperable por disposicion tecnica,
                     <strong> N/D</strong> no disponible.
                 </p>
+            </div>
+        </section>
+    );
+}
+
+function CredixPrevisionalHistoryPanel({ previsional }) {
+    const situations = Array.isArray(previsional?.situaciones_por_empleador)
+        ? previsional.situaciones_por_empleador
+        : [];
+
+    if (situations.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="credix-report__section credix-report__section--primary">
+            <div className="credix-report__sectionHeader">
+                <h2>Situacion previsional detallada</h2>
+            </div>
+            <div className="credix-previsional-history">
+                {situations.map((situation, index) => {
+                    const employer = situation.empleador || {};
+                    const periods = Array.isArray(situation.periodos) ? situation.periodos : [];
+                    const employerLabel = [
+                        formatCuit(employer.cuit),
+                        employer.nombre,
+                    ].filter(Boolean).join(' - ');
+
+                    return (
+                        <article className="credix-previsional-history__block" key={`${employer.cuit || 'empleador'}-${index}`}>
+                            <div className="credix-previsional-history__titlebar">
+                                <strong>Situacion previsional - Empleador {situation.indice || employer.indice || index + 1}</strong>
+                                <span>{situation.fuente ? `Fuente: ${situation.fuente}` : 'Fuente no informada'}</span>
+                            </div>
+                            <div className="credix-previsional-history__meta">
+                                <div>
+                                    <span>Empleador</span>
+                                    <strong>{employerLabel || 'Sin dato'}</strong>
+                                </div>
+                                <div>
+                                    <span>Actividad</span>
+                                    <strong>{employer.actividad || 'Sin dato'}</strong>
+                                </div>
+                                <div>
+                                    <span>Domicilio</span>
+                                    <strong>{employer.domicilio || 'Sin dato'}</strong>
+                                </div>
+                            </div>
+                            {periods.length > 0 && (
+                                <div className="credix-previsional-history__wrap">
+                                    <table className="credix-previsional-history__table">
+                                        <thead>
+                                            <tr>
+                                                <th>Periodo</th>
+                                                <th>Incluido en declaracion jurada</th>
+                                                <th>Aportes de seguridad social</th>
+                                                <th>Aportes de obra social</th>
+                                                <th>Contribucion patronal de obra social</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {periods.map((period, periodIndex) => (
+                                                <tr key={`${period.periodo || 'periodo'}-${periodIndex}`}>
+                                                    <td>{period.periodo || '-'}</td>
+                                                    <td className={period.incluido_declaracion_jurada === 'SI' ? 'credix-previsional-history__yes' : ''}>
+                                                        {period.incluido_declaracion_jurada || '-'}
+                                                    </td>
+                                                    <td>{period.aportes_seguridad_social || '-'}</td>
+                                                    <td>{period.aportes_obra_social || '-'}</td>
+                                                    <td>{period.contribucion_patronal_obra_social || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </article>
+                    );
+                })}
             </div>
         </section>
     );
@@ -1476,6 +1556,14 @@ function formatCurrencyValue(rawValue) {
 function getBcraSituationClass(value) {
     const normalized = String(value || '').trim();
     return /^[1-6]$/.test(normalized) ? normalized : 'na';
+}
+
+function formatCuit(value) {
+    const digits = String(value || '').replace(/\D+/g, '');
+    if (digits.length !== 11) {
+        return value || '';
+    }
+    return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
 }
 
 function extractBirthDate(ageValue) {
