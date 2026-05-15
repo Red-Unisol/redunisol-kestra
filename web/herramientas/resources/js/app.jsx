@@ -701,6 +701,7 @@ function CredixDedicatedReport({ normalized }) {
     return (
         <div className="credix-report">
             <CredixPersonPanel persona={normalized?.persona || {}} />
+            <CredixBcraHistoryPanel bcra={normalized?.bcra || {}} />
             <CredixBcraPanel bcra={normalized?.bcra || {}} />
             <CredixPrevisionalPanel previsional={normalized?.previsional || {}} />
             <CredixQuiebrasPanel quiebras={normalized?.quiebras || {}} />
@@ -794,6 +795,69 @@ function CredixBcraPanel({ bcra }) {
                     ))}
                 </div>
             )}
+        </section>
+    );
+}
+
+function CredixBcraHistoryPanel({ bcra }) {
+    const matrix = bcra?.deudas_24_meses || {};
+    const years = Array.isArray(matrix.anios) ? matrix.anios : [];
+    const months = Array.isArray(matrix.meses) ? matrix.meses : [];
+    const rows = Array.isArray(matrix.filas) ? matrix.filas : [];
+
+    if (years.length === 0 || months.length === 0 || rows.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="credix-report__section credix-report__section--primary">
+            <div className="credix-report__sectionHeader">
+                <h2>Deudas en el sistema financiero</h2>
+                <span className="credix-risk">{matrix.fuente ? `Fuente: ${matrix.fuente}` : 'BCRA'}</span>
+            </div>
+            <div className="credix-bcra-history">
+                <div className="credix-bcra-history__wrap">
+                    <table className="credix-bcra-history__table">
+                        <thead>
+                            <tr>
+                                <th rowSpan="2">Entidad</th>
+                                {years.map((year, index) => (
+                                    <th colSpan={year.span || 1} key={`${year.anio || 'anio'}-${index}`}>
+                                        {year.anio || 'Sin dato'}
+                                    </th>
+                                ))}
+                                <th rowSpan="2">Ultimo monto informado</th>
+                                <th rowSpan="2">Obs.</th>
+                            </tr>
+                            <tr>
+                                {months.map((month, index) => <th key={`${month}-${index}`}>{month}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, rowIndex) => (
+                                <tr
+                                    className={row.activa ? 'credix-bcra-history__row credix-bcra-history__row--active' : 'credix-bcra-history__row'}
+                                    key={`${row.entidad || 'entidad'}-${rowIndex}`}
+                                >
+                                    <th scope="row">{row.entidad || 'Sin dato'}</th>
+                                    {(Array.isArray(row.situaciones) ? row.situaciones : []).map((value, valueIndex) => (
+                                        <td className={`credix-bcra-history__status credix-bcra-history__status--${getBcraSituationClass(value)}`} key={`${rowIndex}-${valueIndex}`}>
+                                            {value || '-'}
+                                        </td>
+                                    ))}
+                                    <td className="credix-bcra-history__amount">{row.ultimo_monto_informado || '-'}</td>
+                                    <td>{row.observacion || ''}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <p className="credix-bcra-history__legend">
+                    Referencias: <strong>1</strong> normal, <strong>2</strong> riesgo potencial, <strong>3</strong> con problemas,
+                    <strong> 4</strong> alto riesgo, <strong>5</strong> irrecuperable, <strong>6</strong> irrecuperable por disposicion tecnica,
+                    <strong> N/D</strong> no disponible.
+                </p>
+            </div>
         </section>
     );
 }
@@ -1407,6 +1471,11 @@ function formatCurrencyValue(rawValue) {
     }
 
     return currencyFormatter.format(numericValue);
+}
+
+function getBcraSituationClass(value) {
+    const normalized = String(value || '').trim();
+    return /^[1-6]$/.test(normalized) ? normalized : 'na';
 }
 
 function extractBirthDate(ageValue) {

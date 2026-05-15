@@ -166,6 +166,7 @@ def build_legacy_response(result: dict[str, Any]) -> dict[str, Any]:
 def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
     normalized = result.get("normalized")
     if isinstance(normalized, dict):
+        _ensure_bcra_24_months_payload(normalized, result.get("data") or [])
         return normalized
 
     payload = {
@@ -184,6 +185,7 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
             "resumen": {"color": "", "detalle": ""},
             "deuda_vigente_total": "",
             "deudas_vigentes": [],
+            "deudas_24_meses": {},
             "historial_por_entidad": [],
             "entidades": [],
         },
@@ -225,6 +227,10 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
 
         if match_title.startswith("resumen"):
             payload["bcra"]["resumen"].update(_normalize_bcra_summary(key_values))
+            continue
+
+        if match_title.startswith("deudas en el sistema financiero"):
+            payload["bcra"]["deudas_24_meses"] = _normalize_bcra_24_months(section)
             continue
 
         if match_title.startswith("deudas vigentes sistema financiero"):
@@ -278,6 +284,10 @@ def build_normalized_payload(result: dict[str, Any]) -> dict[str, Any]:
             elif not payload["quiebras"]["mensaje"]:
                 payload["quiebras"]["mensaje"] = _single_value_row(rows)
 
+    _mark_active_bcra_24_month_rows(
+        payload["bcra"].get("deudas_24_meses"),
+        payload["bcra"].get("deudas_vigentes") or [],
+    )
     result["normalized"] = payload
     return payload
 
@@ -472,6 +482,137 @@ def _normalize_bcra_vigentes(rows: list[list[str]]) -> dict[str, Any]:
         "deudas_vigentes": entities,
         "deuda_vigente_total": total,
     }
+
+
+def _ensure_bcra_24_months_payload(payload: dict[str, Any], sections: Any) -> None:
+    bcra = payload.get("bcra")
+    if not isinstance(bcra, dict):
+        return
+    if isinstance(bcra.get("deudas_24_meses"), dict) and bcra["deudas_24_meses"]:
+        _mark_active_bcra_24_month_rows(
+            bcra.get("deudas_24_meses"),
+            bcra.get("deudas_vigentes") or [],
+        )
+        return
+    if not isinstance(sections, list):
+        return
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        title = normalize_name(section.get("title"))
+        match_title = normalize_name(_normalized_label(title).replace("-", " "))
+        if not match_title.startswith("deudas en el sistema financiero"):
+            continue
+        matrix = _normalize_bcra_24_months(section)
+        if matrix:
+            bcra["deudas_24_meses"] = matrix
+            _mark_active_bcra_24_month_rows(matrix, bcra.get("deudas_vigentes") or [])
+        return
+
+
+def _normalize_bcra_24_months(section: dict[str, Any]) -> dict[str, Any]:
+    rows = _section_rows(section)
+    if len(rows) < 4:
+        return {}
+
+    year_labels = [
+        value
+        for value in rows[1]
+        if re.fullmatch(r"\d{4}", value)
+    ]
+    months = rows[2]
+    if not year_labels or not months:
+        return {}
+
+    years = _build_bcra_year_groups(year_labels, months)
+    entities = []
+    for row in rows[3:]:
+        if len(row) < len(months) + 2:
+            continue
+        entity = row[0]
+        situations = row[1 : 1 + len(months)]
+        amount_index = 1 + len(months)
+        entities.append(
+            {
+                "entidad": entity,
+                "situaciones": situations,
+                "ultimo_monto_informado": row[amount_index] if amount_index < len(row) else "",
+                "observacion": row[amount_index + 1] if amount_index + 1 < len(row) else "",
+                "activa": False,
+            }
+        )
+
+    if not entities:
+        return {}
+
+    return {
+        "titulo": normalize_name(section.get("title")),
+        "fuente": normalize_name(section.get("source")),
+        "anios": years,
+        "meses": months,
+        "filas": entities,
+    }
+
+
+def _build_bcra_year_groups(year_labels: list[str], months: list[str]) -> list[dict[str, Any]]:
+    if not months:
+        return []
+
+    groups: list[dict[str, Any]] = []
+    label_index = 0
+    span = 1
+    previous_month = _month_number(months[0])
+
+    for month in months[1:]:
+        current_month = _month_number(month)
+        is_new_year = current_month > previous_month if current_month and previous_month else False
+        if is_new_year and label_index < len(year_labels):
+            groups.append({"anio": year_labels[label_index], "span": span})
+            label_index += 1
+            span = 1
+        else:
+            span += 1
+        previous_month = current_month
+
+    label = year_labels[min(label_index, len(year_labels) - 1)]
+    groups.append({"anio": label, "span": span})
+    return groups
+
+
+def _month_number(value: str) -> int:
+    return {
+        "ene": 1,
+        "feb": 2,
+        "mar": 3,
+        "abr": 4,
+        "may": 5,
+        "jun": 6,
+        "jul": 7,
+        "ago": 8,
+        "set": 9,
+        "sep": 9,
+        "oct": 10,
+        "nov": 11,
+        "dic": 12,
+    }.get(normalize_name(value).lower(), 0)
+
+
+def _mark_active_bcra_24_month_rows(matrix: Any, active_debts: Any) -> None:
+    if not isinstance(matrix, dict):
+        return
+    rows = matrix.get("filas")
+    if not isinstance(rows, list):
+        return
+    active_entities = {
+        _normalized_label(debt.get("entidad"))
+        for debt in active_debts
+        if isinstance(debt, dict) and normalize_name(debt.get("entidad"))
+    }
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row["activa"] = _normalized_label(row.get("entidad")) in active_entities
 
 
 def _normalize_bcra_history(section: dict[str, Any]) -> list[dict[str, Any]]:

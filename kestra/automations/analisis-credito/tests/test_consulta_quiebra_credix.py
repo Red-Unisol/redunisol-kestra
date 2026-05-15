@@ -203,6 +203,57 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         self.assertEqual(normalized["aportes"]["registraciones"][0]["periodo"], "03/2026 al 05/2026")
         self.assertEqual(normalized["quiebras"]["edictos"][0]["fuente"], "B.O. Santa Fe")
 
+    def test_build_output_payload_normalizes_bcra_24_month_history(self) -> None:
+        result = build_single_result(
+            SearchRequest(cuit="20284049846", nombre=""),
+            [
+                {
+                    "index": 1,
+                    "title": "Deudas en el Sistema Financiero (Ultimos 24 meses publicados) Fuente: BCRA",
+                    "source": "BCRA",
+                    "headers": ["Entidad", "2026", "2025", "2024", "Ultimo monto informado", "Obs."],
+                    "rows": [
+                        ["Deudas en el Sistema Financiero (Ultimos 24 meses publicados) Fuente: BCRA"],
+                        ["Entidad", "2026", "2025", "2024", "Ultimo monto informado", "Obs."],
+                        ["Mar", "Feb", "Ene", "Dic", "Nov", "Oct", "Set", "Ago", "Jul", "Jun", "May", "Abr", "Mar", "Feb", "Ene", "Dic", "Nov", "Oct", "Set", "Ago", "Jul", "Jun", "May", "Abr"],
+                        ["GPAT COMPAÑIA FINANCIERA S.A.U.", "5", "5", "4", "4", "4", "4", "4", "4", "3", "2", "2", "1", "1", "1", "1", "1", "-", "-", "-", "-", "-", "-", "-", "-", "2.886.000"],
+                        ["CREDLAP S.A.", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "1", "-", "-", "-", "-", "-", "317.000"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+                {
+                    "index": 2,
+                    "title": "Deudas Vigentes Sistema Financiero Fuente: BCRA",
+                    "source": "BCRA",
+                    "headers": ["Situación", "Entidad", "Período", "Monto ($)"],
+                    "rows": [
+                        ["Deudas Vigentes Sistema Financiero Fuente: BCRA"],
+                        ["Situación", "Entidad", "Período", "Monto ($)"],
+                        ["5", "35.1%", "GPAT COMPAÑIA FINANCIERA S.A.U.", "03 / 2026", "2.886.000", "17.1%"],
+                        ["TOTAL Deudas Vigentes", "$ 2.886.000"],
+                    ],
+                    "records": [],
+                    "text": "",
+                },
+            ],
+            cuit="20284049846",
+            nombre="GRAMOY ELIAS SAUL",
+        )
+
+        normalized = json.loads(build_output_payload(result)["normalized_json"])
+        history = normalized["bcra"]["deudas_24_meses"]
+
+        self.assertEqual(history["anios"], [
+            {"anio": "2026", "span": 3},
+            {"anio": "2025", "span": 12},
+            {"anio": "2024", "span": 9},
+        ])
+        self.assertEqual(history["meses"][:4], ["Mar", "Feb", "Ene", "Dic"])
+        self.assertEqual(history["filas"][0]["ultimo_monto_informado"], "2.886.000")
+        self.assertTrue(history["filas"][0]["activa"])
+        self.assertFalse(history["filas"][1]["activa"])
+
     def test_normalize_report_section_builds_key_value_records(self) -> None:
         section = _normalize_report_section(
             {
