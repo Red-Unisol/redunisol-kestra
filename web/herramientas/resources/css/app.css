@@ -808,6 +808,11 @@ input {
     grid-column: 1 / -1;
 }
 
+.credix-report__section--person {
+    gap: 10px;
+    padding: 14px 18px;
+}
+
 .credix-report__sectionHeader {
     display: flex;
     align-items: center;
@@ -830,6 +835,11 @@ input {
     gap: 12px;
 }
 
+.credix-report__metricGrid--compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
 .credix-report__metric {
     display: grid;
     gap: 7px;
@@ -837,6 +847,13 @@ input {
     padding: 14px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.76);
+}
+
+.credix-report__metric--compact {
+    gap: 5px;
+    min-height: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
 }
 
 .credix-report__metric strong {
@@ -850,6 +867,11 @@ input {
     color: var(--muted);
     line-height: 1.6;
     font-size: 0.9rem;
+}
+
+.credix-report__section--person .credix-report__note {
+    line-height: 1.4;
+    font-size: 0.84rem;
 }
 
 .credix-risk {
@@ -1117,6 +1139,10 @@ input {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .credix-report__metricGrid--compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .form-grid {
         grid-template-columns: 1fr;
     }
@@ -1175,6 +1201,10 @@ input {
     .credix-report,
     .credix-report__metricGrid,
     .credix-report__columns {
+        grid-template-columns: 1fr;
+    }
+
+    .credix-report__metricGrid--compact {
         grid-template-columns: 1fr;
     }
 

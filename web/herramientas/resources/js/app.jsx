@@ -724,13 +724,13 @@ function CredixPersonPanel({ persona }) {
     ].filter(([, value]) => value);
 
     return (
-        <section className="credix-report__section credix-report__section--primary">
+        <section className="credix-report__section credix-report__section--primary credix-report__section--person">
             <div className="credix-report__sectionHeader">
                 <h2>Datos filiatorios</h2>
             </div>
-            <div className="credix-report__metricGrid">
+            <div className="credix-report__metricGrid credix-report__metricGrid--compact">
                 {metrics.map(([label, value]) => (
-                    <article className="credix-report__metric" key={label}>
+                    <article className="credix-report__metric credix-report__metric--compact" key={label}>
                         <span>{label}</span>
                         <strong>{value}</strong>
                     </article>
