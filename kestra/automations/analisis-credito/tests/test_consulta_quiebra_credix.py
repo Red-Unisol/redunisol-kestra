@@ -392,6 +392,8 @@ class ConsultaQuiebraCredixTests(unittest.TestCase):
         situations = normalized["previsional"]["situaciones_por_empleador"]
 
         self.assertEqual(len(situations), 1)
+        self.assertEqual(situations[0]["empleador"]["cuit"], "33999252449")
+        self.assertEqual(situations[0]["empleador"]["nombre"], "MINISTERIO DE EDUCACION")
         self.assertEqual(situations[0]["periodos"][0]["periodo"], "03/2026")
 
     def test_normalize_report_section_builds_key_value_records(self) -> None:

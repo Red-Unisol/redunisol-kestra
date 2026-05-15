@@ -534,6 +534,10 @@ def _ensure_previsional_employer_tables_payload(payload: dict[str, Any], section
             continue
 
         employer = _normalize_previsional_employer(title, _section_key_values(section))
+        employer = _existing_previsional_employer(
+            previsional.get("empleadores"),
+            employer.get("indice", ""),
+        ) or employer
         next_section = sections[index + 1] if index + 1 < len(sections) else None
         periods = _normalize_previsional_period_table(next_section) if isinstance(next_section, dict) else []
         if not employer or not periods:
@@ -705,7 +709,7 @@ def _normalize_previsional_employer(title: str, values: dict[str, str]) -> dict[
     employer_value = values.get("Empleador", "")
     cuit = ""
     employer_name = employer_value
-    match = re.match(r"(?P<cuit>\\d{2}-\\d{8}-\\d)\\s*-\\s*(?P<name>.+)$", employer_value)
+    match = re.match(r"(?P<cuit>\d{2}-\d{8}-\d)\s*-\s*(?P<name>.+)$", employer_value)
     if match:
         cuit = normalize_cuit(match.group("cuit"))
         employer_name = normalize_name(match.group("name"))
@@ -721,6 +725,17 @@ def _normalize_previsional_employer(title: str, values: dict[str, str]) -> dict[
         "domicilio": values.get("Domicilio", ""),
     }
     return {key: value for key, value in employer.items() if value}
+
+
+def _existing_previsional_employer(employers: Any, employer_index: str) -> dict[str, str]:
+    if not isinstance(employers, list) or not employer_index:
+        return {}
+    for employer in employers:
+        if not isinstance(employer, dict):
+            continue
+        if str(employer.get("indice") or "") == employer_index:
+            return employer
+    return {}
 
 
 def _normalize_previsional_period_table(section: dict[str, Any] | None) -> list[dict[str, str]]:
