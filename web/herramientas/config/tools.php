@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'enabled' => filter_var(env('HERRAMIENTAS_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
     'branding' => [
         'eyebrow' => 'Asociacion Mutual Celesol',
         'title' => 'Herramientas Red Unisol',

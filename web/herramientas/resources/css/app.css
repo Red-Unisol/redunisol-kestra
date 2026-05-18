@@ -38,6 +38,51 @@ body {
     font-family: var(--font-sans);
 }
 
+.disabled-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.disabled-panel {
+    width: min(560px, 100%);
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.disabled-panel__eyebrow {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.disabled-panel__title {
+    margin: 12px 0 0;
+    font-size: clamp(1.45rem, 3vw, 2rem);
+    line-height: 1.15;
+    font-weight: 800;
+}
+
+.disabled-panel__copy {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.65;
+}
+
+.disabled-panel__copy strong {
+    color: var(--ink);
+    font-weight: 800;
+}
+
 button,
 input {
     font: inherit;

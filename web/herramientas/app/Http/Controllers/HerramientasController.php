@@ -12,6 +12,9 @@ class HerramientasController extends Controller
 {
     public function index()
     {
+        if (! $this->isEnabled()) {
+            return $this->renderDisabledPage();
+        }
         $tools = collect(config('tools.catalog', []))
             ->map(function (array $tool): array {
                 if (($tool['id'] ?? null) === 'consulta-renovacion-cruz-del-eje') {
@@ -42,8 +45,32 @@ class HerramientasController extends Controller
         ]);
     }
 
+    private function isEnabled(): bool
+    {
+        return (bool) config('tools.enabled', true);
+    }
+
+    private function renderDisabledPage()
+    {
+        return response()
+            ->view('disabled', status: 503);
+    }
+
+    private function disabledJsonResponse(): JsonResponse
+    {
+        return response()->json([
+            'ok' => false,
+            'message' => 'Esta pagina de desarrollo no esta disponible en este momento.',
+            'error' => 'development_site_disabled',
+        ], 503);
+    }
+
     public function consultaRenovacionCruzDelEje(Request $request): JsonResponse
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledJsonResponse();
+        }
+
         $validated = $request->validate([
             'cuil' => ['required', 'string', 'regex:/^(\d{2}-?\d{8}-?\d|\d{11})$/'],
         ]);
@@ -89,6 +116,10 @@ class HerramientasController extends Controller
 
     public function consultaTopeDescuentoCaja(Request $request): JsonResponse
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledJsonResponse();
+        }
+
         $validated = $request->validate([
             'cuil' => ['required', 'string', 'regex:/^(\d{2}-?\d{8}-?\d|\d{11})$/'],
         ]);
@@ -134,6 +165,10 @@ class HerramientasController extends Controller
 
     public function consultaQuiebraCredix(Request $request): JsonResponse
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledJsonResponse();
+        }
+
         $validator = Validator::make($request->all(), [
             'cuit' => ['nullable', 'string', 'regex:/^(?:\d{7,11}|\d{2}-?\d{8}-?\d)$/'],
             'nombre' => ['nullable', 'string', 'max:160'],
@@ -210,6 +245,10 @@ class HerramientasController extends Controller
 
     public function consultaEmpleador(Request $request): JsonResponse
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledJsonResponse();
+        }
+
         $validated = $request->validate([
             'identificador' => ['required', 'string', 'regex:/^(?:\d{7,11}|\d{2}-?\d{8}-?\d)$/'],
         ]);
@@ -259,6 +298,10 @@ class HerramientasController extends Controller
 
     public function consultaCuad(Request $request): JsonResponse
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledJsonResponse();
+        }
+
         $validated = $request->validate([
             'cuil' => ['required', 'string', 'regex:/^(\d{2}-?\d{8}-?\d|\d{11})$/'],
         ]);
