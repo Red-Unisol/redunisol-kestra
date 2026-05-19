@@ -65,13 +65,6 @@ outputs:
   - id: high_matches_output
     type: STRING
     value: "{{ outputs.generar_excel_vimarx.vars.high_matches_output }}"
-  - id: movement_count
-    type: INT
-    value: "{{ outputs.generar_excel_vimarx.vars.movement_count }}"
-  - id: high_match_row_count
-    type: INT
-    value: "{{ outputs.generar_excel_vimarx.vars.high_match_row_count }}"
-
 triggers:
   - id: madrugada
     type: io.kestra.plugin.core.trigger.Schedule
