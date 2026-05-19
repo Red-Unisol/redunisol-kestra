@@ -1668,8 +1668,182 @@ function getLoadingCopy(toolId) {
     return 'Esperando la respuesta del flujo. La consulta puede demorar unos segundos.';
 }
 
+function ContabilidadTransferApp({ branding, config }) {
+    const [selectedDate, setSelectedDate] = React.useState(config.today || new Date().toISOString().slice(0, 10));
+    const [loading, setLoading] = React.useState(false);
+    const [result, setResult] = React.useState(null);
+    const [error, setError] = React.useState('');
+
+    const fetchStatus = React.useCallback(async (date) => {
+        if (!config.statusEndpoint) {
+            setError('La consulta de outputs no esta configurada.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setResult(null);
+
+        try {
+            const endpoint = new URL(config.statusEndpoint, window.location.origin);
+            endpoint.searchParams.set('fecha', date);
+
+            const response = await fetch(endpoint.toString(), {
+                headers: { Accept: 'application/json' },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || payload.ok === false) {
+                throw new Error(extractErrorMessage(payload));
+            }
+
+            setResult(payload);
+        } catch (statusError) {
+            setError(statusError.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [config.statusEndpoint]);
+
+    React.useEffect(() => {
+        fetchStatus(selectedDate);
+    }, [fetchStatus, selectedDate]);
+
+    const metadata = result?.metadata || {};
+    const downloads = result?.downloads || {};
+
+    return (
+        <div className="shell shell--report">
+            <section className="report-header">
+                <div className="brand">
+                    <img className="brand__logo" src={brandLogoUrl} alt="Red Unisol" />
+                    <div className="brand__copy">
+                        <p className="brand__eyebrow">{branding.eyebrow}</p>
+                        <p className="brand__title">Contabilidad</p>
+                    </div>
+                </div>
+                <div className="report-header__copy">
+                    <h1>Transferencias Vimarx</h1>
+                    <p>Reportes diarios generados desde los TXT bancarios del SFTP.</p>
+                </div>
+            </section>
+
+            <main className="report-layout">
+                <section className="panel report-panel">
+                    <div className="report-panel__top">
+                        <div>
+                            <p className="section__eyebrow">Fecha</p>
+                            <h2>Output disponible</h2>
+                        </div>
+                    </div>
+
+                    <div className="field report-date-field">
+                        <label htmlFor="contabilidad-fecha">Seleccionar fecha</label>
+                        <input
+                            id="contabilidad-fecha"
+                            type="date"
+                            value={selectedDate}
+                            onChange={(event) => setSelectedDate(event.target.value)}
+                        />
+                    </div>
+
+                    {loading && (
+                        <section className="loading-state" role="status" aria-live="polite">
+                            <div className="loading-state__spinner" aria-hidden="true" />
+                            <div className="loading-state__body">
+                                <h3 className="loading-state__headline">Buscando output</h3>
+                                <p className="loading-state__copy">Consultando los archivos generados para la fecha seleccionada.</p>
+                            </div>
+                        </section>
+                    )}
+
+                    {error && (
+                        <section className="result result--error">
+                            <h3 className="result__headline">No se pudo consultar</h3>
+                            <p className="result__copy">{error}</p>
+                        </section>
+                    )}
+
+                    {!loading && !error && result && !result.found && (
+                        <section className="result result--warning">
+                            <h3 className="result__headline">Sin output</h3>
+                            <p className="result__copy">{result.message}</p>
+                        </section>
+                    )}
+
+                    {!loading && !error && result?.found && (
+                        <section className="result result--success">
+                            <h3 className="result__headline">Output encontrado</h3>
+                            <p className="result__copy">El reporte Vimarx de la fecha seleccionada esta disponible para descarga.</p>
+
+                            <div className="result__grid report-metrics">
+                                <div className="result__metric">
+                                    <span>Generado</span>
+                                    <strong>{formatDateTime(metadata.generated_at)}</strong>
+                                </div>
+                                <div className="result__metric">
+                                    <span>Movimientos</span>
+                                    <strong>{metadata.movement_count ?? 'Sin dato'}</strong>
+                                </div>
+                                <div className="result__metric">
+                                    <span>CUITs</span>
+                                    <strong>{metadata.unique_cuit_count ?? 'Sin dato'}</strong>
+                                </div>
+                                <div className="result__metric">
+                                    <span>Matches altos</span>
+                                    <strong>{metadata.high_match_row_count ?? 'Sin dato'}</strong>
+                                </div>
+                                <div className="result__metric">
+                                    <span>Archivos TXT</span>
+                                    <strong>{metadata.downloaded_file_count ?? 'Sin dato'}</strong>
+                                </div>
+                                <div className="result__metric">
+                                    <span>Filas</span>
+                                    <strong>{metadata.full_row_count ?? 'Sin dato'}</strong>
+                                </div>
+                            </div>
+
+                            <div className="report-downloads">
+                                <a className="button button--primary" href={downloads.full}>
+                                    Descargar Excel completo
+                                </a>
+                                <a className="button button--ghost" href={downloads.high_matches}>
+                                    Descargar matches altos
+                                </a>
+                            </div>
+                        </section>
+                    )}
+                </section>
+            </main>
+        </div>
+    );
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return 'Sin dato';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+
+    return new Intl.DateTimeFormat('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    }).format(date);
+}
+
 if (rootElement) {
-    if (initialPayload.page === 'credixsa') {
+    if (initialPayload.mode === 'contabilidad-transfer') {
+        createRoot(rootElement).render(
+            <ContabilidadTransferApp
+                branding={initialPayload.branding || {}}
+                config={initialPayload.contabilidad || {}}
+            />,
+        );
+    } else if (initialPayload.page === 'credixsa') {
         const tools = initialPayload.tools || [];
         const credixTool = tools.find((tool) => tool.id === 'consulta-quiebra-credix') || {};
         createRoot(rootElement).render(

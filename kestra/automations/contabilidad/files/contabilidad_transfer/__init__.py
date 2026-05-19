@@ -1,0 +1,1 @@
+"""Contabilidad transfer automation package."""

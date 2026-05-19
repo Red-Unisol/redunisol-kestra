@@ -72,4 +72,8 @@ return [
         'timeout_seconds' => (int) env('ANALISIS_CREDITO_TIMEOUT_SECONDS', 30),
         'cache_timeout_seconds' => (int) env('ANALISIS_CREDITO_CACHE_TIMEOUT_SECONDS', 3),
     ],
+    'contabilidad' => [
+        'path' => 'contabilidad/'.env('CONTABILIDAD_TRANSFER_PRIVATE_SLUG', '77q330j56z'),
+        'output_root' => env('CONTABILIDAD_TRANSFER_OUTPUT_ROOT', '/data/contabilidad-transfer'),
+    ],
 ];
