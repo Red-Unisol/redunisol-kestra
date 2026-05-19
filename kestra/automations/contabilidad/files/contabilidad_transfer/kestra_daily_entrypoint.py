@@ -14,6 +14,11 @@ from typing import Any
 
 import paramiko
 
+try:
+    from kestra import Kestra
+except ImportError:  # pragma: no cover - optional outside Kestra
+    Kestra = None
+
 from contabilidad_transfer.cruce_mov_emp_vimarx import (
     DEFAULT_API_BASE_URL,
     ApiBundle,
@@ -117,8 +122,13 @@ def write_metadata(output_dir: Path, metadata: dict[str, Any]) -> Path:
     return target
 
 
-def set_kestra_output(name: str, value: Any) -> None:
-    print(f"::{name}::{value}")
+def set_kestra_outputs(values: dict[str, Any]) -> None:
+    if Kestra is not None:
+        Kestra.outputs(values)
+        return
+
+    for name, value in values.items():
+        print(f"{name}={value}")
 
 
 def main() -> int:
@@ -196,14 +206,18 @@ def main() -> int:
         }
         metadata_path = write_metadata(output_dir, metadata)
 
-    set_kestra_output("ok", "true")
-    set_kestra_output("run_date", run_date)
-    set_kestra_output("output_dir", str(output_dir))
-    set_kestra_output("metadata_path", str(metadata_path))
-    set_kestra_output("full_output", metadata["outputs"]["full"])
-    set_kestra_output("high_matches_output", metadata["outputs"]["high_matches"])
-    set_kestra_output("movement_count", metadata["movement_count"])
-    set_kestra_output("high_match_row_count", metadata["high_match_row_count"])
+    set_kestra_outputs(
+        {
+            "ok": True,
+            "run_date": run_date,
+            "output_dir": str(output_dir),
+            "metadata_path": str(metadata_path),
+            "full_output": metadata["outputs"]["full"],
+            "high_matches_output": metadata["outputs"]["high_matches"],
+            "movement_count": metadata["movement_count"],
+            "high_match_row_count": metadata["high_match_row_count"],
+        }
+    )
     return 0
 
 
