@@ -1,0 +1,79 @@
+id: contabilidad_transfer_vimarx_diario
+namespace: redunisol
+
+description: Descarga TXT bancarios desde SFTP, cruza movimientos contra Vimarx y publica Excel diario para contabilidad.
+
+labels:
+  env: prod
+  team: redunisol
+  kind: schedule
+  domain: contabilidad
+  integration: sftp-vimarx
+  schedule_scope: prod_only
+
+inputs:
+  - id: run_date
+    type: STRING
+    required: false
+    description: Fecha de salida YYYY-MM-DD. Si se omite, usa la fecha local de ejecucion.
+
+tasks:
+  - id: generar_excel_vimarx
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+      include:
+        - contabilidad_transfer/**
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - "/opt/kestra/data/contabilidad-transfer:/data/contabilidad-transfer"
+    containerImage: python:3.12-slim
+    beforeCommands:
+      - pip install kestra openpyxl paramiko requests urllib3 > /dev/null
+    env:
+      CONTABILIDAD_RUN_DATE: "{{ inputs.run_date ?? '' }}"
+      CONTABILIDAD_SFTP_HOST: "{{ secret('CONTABILIDAD_SFTP_HOST') }}"
+      CONTABILIDAD_SFTP_PORT: "22"
+      CONTABILIDAD_SFTP_USERNAME: "{{ secret('CONTABILIDAD_SFTP_USERNAME') }}"
+      CONTABILIDAD_SFTP_PASSWORD: "{{ secret('CONTABILIDAD_SFTP_PASSWORD') }}"
+      CONTABILIDAD_SFTP_REMOTE_DIR: "."
+      CONTABILIDAD_SFTP_PATTERN: "mov_emp_431*.txt"
+      CONTABILIDAD_OUTPUT_ROOT: "/data/contabilidad-transfer"
+      CONTABILIDAD_CACHE_DIR: "/data/contabilidad-transfer/cache/vimarx"
+      VIMARX_BASE_URL: "{{ secret('DEVEXPRESS_EVALUATE_API_BASE_URL') }}"
+      VIMARX_TIMEOUT_SECONDS: "{{ envs.vimarx_timeout_seconds ?? '30' }}"
+    commands:
+      - python -m contabilidad_transfer.kestra_daily_entrypoint
+
+outputs:
+  - id: ok
+    type: BOOLEAN
+    value: "{{ outputs.generar_excel_vimarx.vars.ok }}"
+  - id: run_date
+    type: STRING
+    value: "{{ outputs.generar_excel_vimarx.vars.run_date }}"
+  - id: output_dir
+    type: STRING
+    value: "{{ outputs.generar_excel_vimarx.vars.output_dir }}"
+  - id: metadata_path
+    type: STRING
+    value: "{{ outputs.generar_excel_vimarx.vars.metadata_path }}"
+  - id: full_output
+    type: STRING
+    value: "{{ outputs.generar_excel_vimarx.vars.full_output }}"
+  - id: high_matches_output
+    type: STRING
+    value: "{{ outputs.generar_excel_vimarx.vars.high_matches_output }}"
+  - id: movement_count
+    type: INT
+    value: "{{ outputs.generar_excel_vimarx.vars.movement_count }}"
+  - id: high_match_row_count
+    type: INT
+    value: "{{ outputs.generar_excel_vimarx.vars.high_match_row_count }}"
+
+triggers:
+  - id: madrugada
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 4 * * *"
+    timezone: America/Argentina/Buenos_Aires
