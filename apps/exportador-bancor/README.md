@@ -131,7 +131,7 @@ Si querés saltear tests durante el empaquetado:
 - endpoint: `https://celesol.dyndns.org:5050/api/Empresa/EvaluateList`
 - TLS sin CA confiable: el cliente usa `verify=False`
 - filtro base: cuotas con saldo positivo dentro de `LINEAS CBU BANCOS VARIOS`
-- modo `--club-mutual`: usa `LINEAS CLUB MUTUAL` y filtra defensivamente por esa línea superior aun con filtros custom o dumps amplios
+- modo `--club-mutual`: usa `LINEAS CLUB MUTUAL`, acepta CBU de Banco Nación (`011*`) y filtra defensivamente por esa línea superior aun con filtros custom o dumps amplios
 
 ### Excel de entrada
 
@@ -154,7 +154,7 @@ Importante:
 
 - `--arrastre` no genera un workbook aparte
 - `--arrastre` cambia qué valores de `CAJA40` son elegibles para `a-enviar`
-- `--club-mutual` no cambia las demás clasificaciones; solo ajusta la línea superior consultada y las reglas de shots
+- `--club-mutual` cambia el banco objetivo de Bancor a Nación, ajusta la línea superior consultada y aplica sus reglas de shots
 - en `--club-mutual` no hay tope superior de shot y el piso operativo pasa a `11000`
 
 ## Documentación importada

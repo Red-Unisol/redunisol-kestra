@@ -68,5 +68,5 @@ outputs:
 triggers:
   - id: madrugada
     type: io.kestra.plugin.core.trigger.Schedule
-    cron: "0 4 * * *"
+    cron: "30 8 * * *"
     timezone: America/Argentina/Buenos_Aires

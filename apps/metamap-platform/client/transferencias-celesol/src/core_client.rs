@@ -100,7 +100,7 @@ impl CoreClient {
     }
 
     pub fn fetch_system_cuil_by_document(&self, document: &str) -> Result<Option<String>> {
-        let Some(criteria) = build_eval_criteria("NroDoc", document) else {
+        let Some(criteria) = build_numeric_eval_criteria("NroDoc", document) else {
             return Ok(None);
         };
         log::debug!(
@@ -280,10 +280,40 @@ fn build_eval_criteria(field: &str, value: &str) -> Option<String> {
     Some(format!("[{field}]='{escaped}'"))
 }
 
+fn build_numeric_eval_criteria(field: &str, value: &str) -> Option<String> {
+    let digits = normalize_digits(value)?;
+    Some(format!("[{field}]={digits}"))
+}
+
 fn mask_value(value: &str, visible_suffix: usize) -> String {
     let trimmed = value.trim();
     if trimmed.len() <= visible_suffix {
         return trimmed.to_owned();
     }
     format!("***{}", &trimmed[trimmed.len() - visible_suffix..])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_eval_criteria, build_numeric_eval_criteria};
+
+    #[test]
+    fn numeric_criteria_strips_non_digits() {
+        assert_eq!(
+            build_numeric_eval_criteria("NroDoc", "F6542664").as_deref(),
+            Some("[NroDoc]=6542664")
+        );
+        assert_eq!(
+            build_numeric_eval_criteria("NroDoc", " 20-12345678-3 ").as_deref(),
+            Some("[NroDoc]=20123456783")
+        );
+    }
+
+    #[test]
+    fn generic_criteria_still_quotes_non_numeric_values() {
+        assert_eq!(
+            build_eval_criteria("Oid", "SOL-123").as_deref(),
+            Some("[Oid]='SOL-123'")
+        );
+    }
 }

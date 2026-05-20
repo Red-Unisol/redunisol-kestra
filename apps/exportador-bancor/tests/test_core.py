@@ -303,6 +303,40 @@ class ClassificationOutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.category, "no-bancor")
         self.assertEqual(outcome.estado_cbu, "Fuera de Regla")
 
+    def test_club_mutual_accepts_banco_nacion_cbu(self) -> None:
+        attempts = AttemptSummary.empty()
+        attempts.register(Attempt(amount=Decimal("10000.00"), entered=True, response="COB"))
+        planilla = self.factory.build(cbu="0110213230021386090815", attempts=attempts)
+
+        outcome_standard = determine_planilla_outcome(planilla, arrastre_mode=False)
+        outcome_club_mutual = determine_planilla_outcome(
+            planilla,
+            arrastre_mode=False,
+            club_mutual_mode=True,
+        )
+
+        self.assertEqual(outcome_standard.category, "no-bancor")
+        self.assertEqual(outcome_club_mutual.category, "a-enviar")
+        self.assertEqual(outcome_club_mutual.estado_cbu, "Regular")
+
+    def test_club_mutual_report_uses_nacion_labels(self) -> None:
+        attempts = AttemptSummary.empty()
+        attempts.register(Attempt(amount=Decimal("10000.00"), entered=True, response="COB"))
+        planilla = self.factory.build(cbu="123456789000", attempts=attempts)
+
+        _, _, report_rows = classify_planillas(
+            [planilla],
+            _dt.date(2025, 10, 16),
+            dev_mode=False,
+            arrastre_mode=False,
+            club_mutual_mode=True,
+        )
+
+        row = report_rows[0]
+        self.assertEqual(row["Clasificación Final"], "No Nacion")
+        self.assertEqual(row["Clasificación CBU"], "No Nacion")
+        self.assertEqual(row["Motivo Clasificación"], "CBU fuera de Nacion")
+
     def test_discarded_entries_are_exported(self) -> None:
         attempts = AttemptSummary.empty()
         attempts.register(Attempt(amount=Decimal("5000.00"), entered=True, response="COB"))
@@ -382,7 +416,12 @@ class ClassificationOutcomeTests(unittest.TestCase):
     def test_club_mutual_mode_changes_shots_in_classification(self) -> None:
         attempts = AttemptSummary.empty()
         attempts.register(Attempt(amount=Decimal("10000.00"), entered=True, response="COB"))
-        planilla = self.factory.build(attempts=attempts, outstanding="120000.00", installment="40000.00")
+        planilla = self.factory.build(
+            cbu="0110213230021386090815",
+            attempts=attempts,
+            outstanding="120000.00",
+            installment="40000.00",
+        )
         outcome = determine_planilla_outcome(planilla, arrastre_mode=False, club_mutual_mode=True)
         self.assertEqual(outcome.category, "a-enviar")
         self.assertEqual(outcome.shots, [Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("11000.00"), Decimal("16000.00")])

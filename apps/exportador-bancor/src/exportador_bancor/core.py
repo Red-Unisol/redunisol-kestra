@@ -135,9 +135,20 @@ CATEGORY_LABELS: Dict[str, str] = {
     "posiblemente-bancor": "Posiblemente Bancor",
     "no-bancor": "No Bancor",
 }
+CLUB_MUTUAL_CATEGORY_LABELS: Dict[str, str] = {
+    "a-enviar": "A Enviar",
+    "bancor-pero-no-enviamos": "Nacion Pero No Enviamos",
+    "posiblemente-bancor": "Posiblemente Nacion",
+    "no-bancor": "No Nacion",
+}
 CBU_CLASSIFICATION_LABELS: Dict[str, str] = {
     "Regular": "Bancor",
     "Fuera de Regla": "No Bancor",
+    "Especial": "A revisar",
+}
+CLUB_MUTUAL_CBU_CLASSIFICATION_LABELS: Dict[str, str] = {
+    "Regular": "Nacion",
+    "Fuera de Regla": "No Nacion",
     "Especial": "A revisar",
 }
 DISCARDED_LOG_NAME = "no_bancor_entries_debug.log"
@@ -468,13 +479,14 @@ def _is_caja40_allowed(value: Optional[int], *, arrastre_mode: bool) -> bool:
     return value is not None and 1 <= value <= 20
 
 
-def _describe_cbu_status(raw_cbu: str) -> str:
+def _describe_cbu_status(raw_cbu: str, *, club_mutual_mode: bool = False) -> str:
     if not raw_cbu:
         return "Especial"
     cbu_upper = raw_cbu.upper()
     if raw_cbu.startswith("000") or cbu_upper == "REVISAR CBU":
         return "Especial"
-    if raw_cbu.startswith("0200"):
+    valid_prefix = "011" if club_mutual_mode else "0200"
+    if raw_cbu.startswith(valid_prefix):
         return "Regular"
     return "Fuera de Regla"
 
@@ -877,7 +889,7 @@ def determine_planilla_outcome(
     club_mutual_mode: bool = False,
 ) -> ClassificationOutcome:
     cbu_clean = planilla.cbu.strip() if planilla.cbu else ""
-    estado_cbu = _describe_cbu_status(cbu_clean)
+    estado_cbu = _describe_cbu_status(cbu_clean, club_mutual_mode=club_mutual_mode)
     caja40_permitido = _is_caja40_allowed(planilla.caja40_int, arrastre_mode=arrastre_mode)
     caja40_clasificacion = _clasificar_caja40(planilla.caja40_int)
 
@@ -986,6 +998,8 @@ def _build_report_record(
     planilla: ConsolidatedPlanilla,
     outcome: ClassificationOutcome,
     report_date: _dt.date,
+    *,
+    club_mutual_mode: bool = False,
 ) -> Dict[str, object]:
     shots = [_quantize_currency(shot) for shot in outcome.shots]
     monto_total_enviado = _quantize_currency(sum(shots, Decimal("0"))) if shots else Decimal("0.00")
@@ -1027,9 +1041,16 @@ def _build_report_record(
     respuestas = ", ".join(sorted(planilla.attempts.responses)) if planilla.attempts.responses else ""
     ultimo_importe_cobrado = _quantize_currency(max(entered_amounts)) if entered_amounts else Decimal("0.00")
     tiene_r8 = "SI" if planilla.attempts.has_forbidden_responses else "NO"
-    clasificacion = CATEGORY_LABELS.get(outcome.category, outcome.category)
+    category_labels = CLUB_MUTUAL_CATEGORY_LABELS if club_mutual_mode else CATEGORY_LABELS
+    clasificacion = category_labels.get(outcome.category, outcome.category)
     estado_prestamo = "Nuevo" if planilla.loan_status == "new" else "Viejo"
-    estado_cbu = CBU_CLASSIFICATION_LABELS.get(outcome.estado_cbu, outcome.estado_cbu)
+    cbu_labels = CLUB_MUTUAL_CBU_CLASSIFICATION_LABELS if club_mutual_mode else CBU_CLASSIFICATION_LABELS
+    estado_cbu = cbu_labels.get(outcome.estado_cbu, outcome.estado_cbu)
+    motivo_labels = MOTIVO_LABELS
+    if club_mutual_mode and outcome.reason == "cbu_fuera_de_regla":
+        motivo_clasificacion = "CBU fuera de Nacion"
+    else:
+        motivo_clasificacion = motivo_labels.get(outcome.reason or "", "Incluido en Criterio de Envío")
 
     return {
         "Número Planilla": planilla.planilla,
@@ -1037,7 +1058,7 @@ def _build_report_record(
         "Número Documento": planilla.nro_doc,
         "Línea Código": planilla.linea_codigo,
         "Clasificación Final": clasificacion,
-        "Motivo Clasificación": MOTIVO_LABELS.get(outcome.reason or "", "Incluido en Criterio de Envío"),
+        "Motivo Clasificación": motivo_clasificacion,
         "Clasificación Caja40": outcome.caja40_clasificacion,
         "Planillas por Socio": planilla.planillas_per_socio,
         "¿Es Nuevo o Viejo?": estado_prestamo,
@@ -1083,7 +1104,14 @@ def classify_planillas(
             arrastre_mode=arrastre_mode,
             club_mutual_mode=club_mutual_mode,
         )
-        report_rows.append(_build_report_record(planilla, outcome, report_date))
+        report_rows.append(
+            _build_report_record(
+                planilla,
+                outcome,
+                report_date,
+                club_mutual_mode=club_mutual_mode,
+            )
+        )
         if outcome.category == "no-bancor":
             if dev_mode:
                 discarded_entries.append(
@@ -1363,7 +1391,16 @@ def write_report_file(
             apply_conditional("Mes Actual - ¿Se Envía?", "C6EFCE", "FFC7CE")
             apply_conditional("Mes Pasado - ¿Se Envió?", "C6EFCE", "FFC7CE")
 
-            apply_value_fill("Clasificación CBU", {"Bancor": "C6EFCE", "No Bancor": "FFC7CE", "A revisar": "FFF2CC"})
+            apply_value_fill(
+                "Clasificación CBU",
+                {
+                    "Bancor": "C6EFCE",
+                    "No Bancor": "FFC7CE",
+                    "Nacion": "C6EFCE",
+                    "No Nacion": "FFC7CE",
+                    "A revisar": "FFF2CC",
+                },
+            )
             apply_value_fill(
                 "Clasificación Caja40",
                 {"GRUPOS 1-20": "BDD7EE", "ARRASTRE": "DDEBF7", "CAJAS SIN USO": "FFC7CE"},

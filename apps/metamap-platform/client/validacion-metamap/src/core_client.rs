@@ -64,14 +64,11 @@ impl CoreClient {
         Ok(snapshots)
     }
 
-    pub fn fetch_cuil_by_documents(
-        &self,
-        documents: &[String],
-    ) -> Result<HashMap<String, String>> {
+    pub fn fetch_cuil_by_documents(&self, documents: &[String]) -> Result<HashMap<String, String>> {
         let mut values = HashMap::new();
 
         for chunk in documents.chunks(120) {
-            let criteria = build_eval_criteria("NroDoc", chunk);
+            let criteria = build_numeric_eval_criteria("NroDoc", chunk);
             if criteria.is_none() {
                 continue;
             }
@@ -134,7 +131,8 @@ fn parse_core_snapshot(value: &Value) -> CoreSnapshot {
                 "lineaPrestamo.descripcion",
             ],
         ),
-        cuil: read_indexed_value(value, 5, &["CUIT", "Cuit", "cuit"]).map(|value| format_cuil(&value)),
+        cuil: read_indexed_value(value, 5, &["CUIT", "Cuit", "cuit"])
+            .map(|value| format_cuil(&value)),
         document_number: read_indexed_value(value, 6, &["NroDocumento", "NroDoc"]),
     }
 }
@@ -179,6 +177,26 @@ fn build_eval_criteria(field: &str, values: &[String]) -> Option<String> {
     Some(parts.join(" OR "))
 }
 
+fn build_numeric_eval_criteria(field: &str, values: &[String]) -> Option<String> {
+    let parts = values
+        .iter()
+        .filter_map(|value| {
+            let digits = normalize_digits(value);
+            if digits.is_empty() {
+                None
+            } else {
+                Some(format!("[{field}]={digits}"))
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    Some(parts.join(" OR "))
+}
+
 fn build_eval_term(field: &str, value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -191,4 +209,29 @@ fn build_eval_term(field: &str, value: &str) -> Option<String> {
     }
 
     Some(format!("[{field}]='{}'", trimmed.replace('\'', "''")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_eval_criteria, build_numeric_eval_criteria};
+
+    #[test]
+    fn numeric_criteria_strips_non_digits() {
+        let values = vec!["F6542664".to_owned(), " 20-12345678-3 ".to_owned()];
+
+        assert_eq!(
+            build_numeric_eval_criteria("NroDoc", &values).as_deref(),
+            Some("[NroDoc]=6542664 OR [NroDoc]=20123456783")
+        );
+    }
+
+    #[test]
+    fn generic_criteria_still_quotes_non_numeric_values() {
+        let values = vec!["SOL-123".to_owned()];
+
+        assert_eq!(
+            build_eval_criteria("Oid", &values).as_deref(),
+            Some("[Oid]='SOL-123'")
+        );
+    }
 }
