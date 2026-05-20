@@ -8,7 +8,7 @@ Flow principal:
 
 - `contabilidad_transfer_vimarx_diario`
 - namespace runtime por ambiente: `redunisol.<env>.contabilidad`
-- schedule prod: todos los dias a las 04:00 `America/Argentina/Buenos_Aires`
+- schedule prod: todos los dias a las 08:30 `America/Argentina/Buenos_Aires`
 
 Proceso:
 
