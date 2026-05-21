@@ -1668,6 +1668,219 @@ function getLoadingCopy(toolId) {
     return 'Esperando la respuesta del flujo. La consulta puede demorar unos segundos.';
 }
 
+function ObjectivesDashboardApp({ branding, config }) {
+    const refreshMs = Math.max(Number(config.refreshSeconds || 60), 15) * 1000;
+    const [snapshot, setSnapshot] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState('');
+
+    const fetchSnapshot = React.useCallback(async () => {
+        if (!config.snapshotEndpoint) {
+            setLoading(false);
+            setError('La pantalla no tiene configurado el origen de datos.');
+            return;
+        }
+
+        try {
+            const response = await fetch(config.snapshotEndpoint, {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || payload.ok === false) {
+                throw new Error(extractErrorMessage(payload));
+            }
+
+            setSnapshot(payload);
+            setError('');
+        } catch (snapshotError) {
+            setError(snapshotError.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [config.snapshotEndpoint]);
+
+    React.useEffect(() => {
+        fetchSnapshot();
+        const timer = window.setInterval(fetchSnapshot, refreshMs);
+        return () => window.clearInterval(timer);
+    }, [fetchSnapshot, refreshMs]);
+
+    const metrics = normalizeObjectiveMetrics(snapshot);
+    const periodLabel = snapshot?.periodo_actual || snapshot?.current_period || 'Mes actual';
+    const updatedAt = snapshot?.actualizado_en || snapshot?.updated_at;
+
+    return (
+        <div className="objectives-screen">
+            <header className="objectives-header">
+                <div className="brand">
+                    <img className="brand__logo objectives-header__logo" src={brandLogoUrl} alt="Red Unisol" />
+                    <div className="brand__copy">
+                        <p className="brand__eyebrow">{branding.eyebrow}</p>
+                        <p className="brand__title">Objetivos del mes</p>
+                    </div>
+                </div>
+                <div className="objectives-header__meta">
+                    <span>{periodLabel}</span>
+                    <strong>{updatedAt ? `Actualizado ${formatDateTime(updatedAt)}` : 'Esperando actualizacion'}</strong>
+                </div>
+            </header>
+
+            <main className="objectives-main">
+                <section className="objectives-title">
+                    <p className="section__eyebrow">Seguimiento comercial</p>
+                    <h1>Objetivos de tiempos</h1>
+                </section>
+
+                {loading && (
+                    <section className="objectives-state" role="status" aria-live="polite">
+                        <div className="loading-state__spinner" aria-hidden="true" />
+                        <p>Cargando metricas del mes.</p>
+                    </section>
+                )}
+
+                {!loading && error && (
+                    <section className="objectives-state objectives-state--error" role="status" aria-live="polite">
+                        <p>{error}</p>
+                    </section>
+                )}
+
+                {!loading && !error && metrics.length === 0 && (
+                    <section className="objectives-state" role="status" aria-live="polite">
+                        <p>No hay metricas publicadas para mostrar.</p>
+                    </section>
+                )}
+
+                {!loading && !error && metrics.length > 0 && (
+                    <section className="objective-grid">
+                        {metrics.map((metric) => (
+                            <ObjectiveMetricCard key={metric.id} metric={metric} />
+                        ))}
+                    </section>
+                )}
+            </main>
+        </div>
+    );
+}
+
+function ObjectiveMetricCard({ metric }) {
+    const state = normalizeObjectiveState(metric.estado, metric.actualMin, metric.objetivoMin);
+    const deltaText = formatDelta(metric.actualMin, metric.objetivoMin);
+
+    return (
+        <article className={`objective-card objective-card--${state}`}>
+            <div className="objective-card__top">
+                <h2>{metric.nombre}</h2>
+                <span className="objective-card__status">{objectiveStateLabel(state)}</span>
+            </div>
+
+            <div className="objective-card__value">
+                <strong>{formatMinutes(metric.actualMin)}</strong>
+                <span>actual</span>
+            </div>
+
+            <div className="objective-card__target">
+                <span>Objetivo</span>
+                <strong>{formatMinutes(metric.objetivoMin)}</strong>
+            </div>
+
+            <div className="objective-card__footer">
+                <span>{deltaText}</span>
+                <strong>{metric.casos === null ? 'Sin casos' : `${metric.casos} casos`}</strong>
+            </div>
+        </article>
+    );
+}
+
+function normalizeObjectiveMetrics(snapshot) {
+    const rows = snapshot?.metricas || snapshot?.metrics || [];
+    if (!Array.isArray(rows)) {
+        return [];
+    }
+
+    return rows.map((row, index) => ({
+        id: row.id || row.key || `metric-${index}`,
+        nombre: row.nombre || row.name || 'Objetivo',
+        actualMin: toNumberOrNull(row.actual_min ?? row.current_min ?? row.actualMin),
+        objetivoMin: toNumberOrNull(row.objetivo_min ?? row.target_min ?? row.objetivoMin),
+        casos: toIntegerOrNull(row.casos ?? row.cases),
+        estado: row.estado || row.status || null,
+    }));
+}
+
+function toNumberOrNull(value) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function toIntegerOrNull(value) {
+    const numberValue = Number(value);
+    return Number.isInteger(numberValue) ? numberValue : null;
+}
+
+function normalizeObjectiveState(rawState, actualMin, targetMin) {
+    const state = String(rawState || '').toLowerCase();
+    if (['verde', 'green', 'ok'].includes(state)) {
+        return 'green';
+    }
+    if (['amarillo', 'yellow', 'warning'].includes(state)) {
+        return 'yellow';
+    }
+    if (['rojo', 'red', 'danger'].includes(state)) {
+        return 'red';
+    }
+    if (actualMin === null || targetMin === null || targetMin <= 0) {
+        return 'neutral';
+    }
+    if (actualMin <= targetMin) {
+        return 'green';
+    }
+    if (actualMin <= targetMin * 1.15) {
+        return 'yellow';
+    }
+    return 'red';
+}
+
+function objectiveStateLabel(state) {
+    if (state === 'green') {
+        return 'En objetivo';
+    }
+    if (state === 'yellow') {
+        return 'Cerca';
+    }
+    if (state === 'red') {
+        return 'A recuperar';
+    }
+    return 'Sin datos';
+}
+
+function formatMinutes(value) {
+    if (value === null) {
+        return 'Sin datos';
+    }
+    if (value >= 60) {
+        const hours = value / 60;
+        return `${hours.toLocaleString('es-AR', { maximumFractionDigits: 1 })} h`;
+    }
+    return `${value.toLocaleString('es-AR', { maximumFractionDigits: 1 })} min`;
+}
+
+function formatDelta(actualMin, targetMin) {
+    if (actualMin === null || targetMin === null || targetMin <= 0) {
+        return 'Sin comparacion disponible';
+    }
+
+    const deltaPercent = ((actualMin - targetMin) / targetMin) * 100;
+    const absolute = Math.abs(deltaPercent).toLocaleString('es-AR', { maximumFractionDigits: 1 });
+
+    if (deltaPercent <= 0) {
+        return `${absolute}% mejor que el objetivo`;
+    }
+
+    return `${absolute}% por encima del objetivo`;
+}
+
 function ContabilidadTransferApp({ branding, config }) {
     const [selectedDate, setSelectedDate] = React.useState(config.today || new Date().toISOString().slice(0, 10));
     const [loading, setLoading] = React.useState(false);
@@ -1836,23 +2049,32 @@ function formatDateTime(value) {
 }
 
 if (rootElement) {
+    let component = <App branding={initialPayload.branding || {}} tools={initialPayload.tools || []} />;
+
     if (initialPayload.mode === 'contabilidad-transfer') {
-        createRoot(rootElement).render(
+        component = (
             <ContabilidadTransferApp
                 branding={initialPayload.branding || {}}
                 config={initialPayload.contabilidad || {}}
-            />,
+            />
+        );
+    } else if (initialPayload.mode === 'objectives-dashboard') {
+        component = (
+            <ObjectivesDashboardApp
+                branding={initialPayload.branding || {}}
+                config={initialPayload.objectives || {}}
+            />
         );
     } else if (initialPayload.page === 'credixsa') {
         const tools = initialPayload.tools || [];
         const credixTool = tools.find((tool) => tool.id === 'consulta-quiebra-credix') || {};
-        createRoot(rootElement).render(
+        component = (
             <CredixsaPage
                 branding={initialPayload.branding || {}}
                 tool={credixTool}
-            />,
+            />
         );
-    } else {
-        createRoot(rootElement).render(<App branding={initialPayload.branding || {}} tools={initialPayload.tools || []} />);
     }
+
+    createRoot(rootElement).render(component);
 }
