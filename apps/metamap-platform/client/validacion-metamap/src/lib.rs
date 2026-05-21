@@ -1,6 +1,6 @@
 pub const APP_NAME: &str = "Validacion MetaMap";
-pub const BUILD_TAG: &str = "1.0.0";
-pub const APP_NAME_WITH_TAG: &str = "Validacion MetaMap 1.0.0";
+pub const BUILD_TAG: &str = "1.5";
+pub const APP_NAME_WITH_TAG: &str = "Validacion MetaMap 1.5";
 
 pub mod app;
 pub mod config;

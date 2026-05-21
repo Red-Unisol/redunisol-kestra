@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "validacion-metamap"
-version = "1.0.0"
+version = "1.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3744,6 +3744,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

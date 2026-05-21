@@ -275,34 +275,28 @@ impl eframe::App for ValidacionMetamapApp {
         let mut clicked_review_id = None;
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(8.0, 4.0);
+            ui.spacing_mut().button_padding = egui::vec2(8.0, 3.0);
             ui.vertical(|ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.heading(APP_NAME_WITH_TAG);
+                    ui.label(RichText::new(APP_NAME_WITH_TAG).size(18.0).strong());
                     ui.separator();
                     ui.label(
                         RichText::new("Cliente local privado")
+                            .size(13.0)
                             .color(Color32::from_rgb(34, 108, 62))
                             .strong(),
                     );
                     ui.separator();
-                    ui.label(format!("Validaciones hoy: {}", self.summary.total));
-                    ui.label(format!("Revisadas: {}", self.summary.reviewed));
-                    ui.label(format!(
-                        "Con datos del core: {}",
-                        self.summary.core_enriched
-                    ));
-                    ui.label(format!(
-                        "Polling: {}s",
-                        self.services.poll_interval.as_secs()
-                    ));
+                    ui.label(format!("Hoy: {}", self.summary.total));
+                    ui.label(format!("Rev: {}", self.summary.reviewed));
+                    ui.label(format!("Core: {}", self.summary.core_enriched));
+                    ui.label(format!("Poll: {}s", self.services.poll_interval.as_secs()));
                     if let Some(last_updated_at) = self.last_updated_at {
-                        ui.label(format!(
-                            "Ultima actualizacion: {}",
-                            last_updated_at.format("%H:%M:%S")
-                        ));
+                        ui.label(format!("Act: {}", last_updated_at.format("%H:%M:%S")));
                     }
                     if ui
-                        .add_enabled(!self.items_loading, egui::Button::new("Actualizar ahora"))
+                        .add_enabled(!self.items_loading, egui::Button::new("Actualizar"))
                         .clicked()
                     {
                         self.spawn_refresh();
@@ -322,9 +316,10 @@ impl eframe::App for ValidacionMetamapApp {
 
         egui::TopBottomPanel::bottom("events")
             .resizable(true)
-            .default_height(150.0)
+            .default_height(92.0)
             .show(ctx, |ui| {
-                ui.heading("Eventos");
+                ui.spacing_mut().item_spacing = egui::vec2(6.0, 3.0);
+                ui.label(RichText::new("Eventos").size(15.0).strong());
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for notice in &self.notices {
                         ui.label(notice);
@@ -361,15 +356,18 @@ impl eframe::App for ValidacionMetamapApp {
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let available_width = ui.available_width().max(360.0);
-                let columns = ((available_width + 16.0) / 360.0).floor().max(1.0) as usize;
-                let card_width = ((available_width - (16.0 * (columns.saturating_sub(1) as f32)))
+                ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+                let available_width = ui.available_width().max(260.0);
+                let grid_gap = 8.0;
+                let columns = ((available_width + grid_gap) / 260.0).floor().max(1.0) as usize;
+                let card_width = ((available_width
+                    - (grid_gap * (columns.saturating_sub(1) as f32)))
                     / columns as f32)
-                    .max(320.0);
+                    .max(245.0);
 
                 egui::Grid::new("validation_cards_grid")
                     .num_columns(columns)
-                    .spacing([16.0, 16.0])
+                    .spacing([grid_gap, grid_gap])
                     .show(ui, |ui| {
                         for (grid_index, item_index) in visible_indices.iter().enumerate() {
                             let item = &self.items[*item_index];
@@ -672,18 +670,20 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
     };
     let frame = egui::Frame::group(ui.style())
         .fill(card_fill)
+        .inner_margin(egui::Margin::symmetric(6, 6))
         .stroke(egui::Stroke::new(1.0, card_stroke));
     let mut mark_reviewed_clicked = false;
 
     frame.show(ui, |ui| {
         ui.set_min_width(card_width - 12.0);
-        ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
+        ui.spacing_mut().item_spacing = egui::vec2(5.0, 3.0);
+        ui.spacing_mut().button_padding = egui::vec2(8.0, 3.0);
 
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(&item.event_label)
                     .color(secondary_text_color)
-                    .size(14.0),
+                    .size(12.0),
             );
             let source_text = if item.core_enriched {
                 "Core + MetaMap"
@@ -707,7 +707,7 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
                 RichText::new(source_text)
                     .color(source_color)
                     .strong()
-                    .size(14.0),
+                    .size(12.0),
             );
             if let Some(reviewed_label) = &item.reviewed_label {
                 let reviewed_label_color = if reviewed {
@@ -718,41 +718,51 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
                 ui.label(
                     RichText::new(reviewed_label)
                         .color(reviewed_label_color)
-                        .size(14.0),
+                        .size(12.0),
                 );
             }
         });
 
         if let Some(verification_id) = item.verification_id.as_deref() {
-            ui.label(
-                RichText::new(verification_id)
-                    .color(secondary_text_color)
-                    .size(13.0),
+            ui.add(
+                egui::Label::new(
+                    RichText::new(verification_id)
+                        .color(secondary_text_color)
+                        .size(10.0),
+                )
+                .truncate(),
             );
         }
 
-        ui.label(
-            RichText::new(&item.name)
-                .color(primary_text_color)
-                .size(30.0)
-                .strong(),
+        ui.add(
+            egui::Label::new(
+                RichText::new(&item.name)
+                    .color(primary_text_color)
+                    .size(18.0)
+                    .strong(),
+            )
+            .truncate(),
         );
-        ui.separator();
 
-        render_metric(ui, "LINEA", &item.line, 22.0, reviewed);
-        render_metric(ui, "NUM SOLICITUD", &item.request_number, 22.0, reviewed);
-        render_metric(ui, "CUIL", &item.cuil, 22.0, reviewed);
-        render_metric(ui, "MONTO", &item.amount, 28.0, reviewed);
+        render_metric_full(ui, "LINEA", &item.line, reviewed);
+        ui.columns(3, |columns| {
+            render_metric(&mut columns[0], "SOLICITUD", &item.request_number, 13.0, reviewed);
+            render_metric(&mut columns[1], "CUIL", &item.cuil, 13.0, reviewed);
+            render_metric(&mut columns[2], "MONTO", &item.amount, 15.0, reviewed);
+        });
 
         if let Some(reviewed_by) = item
             .reviewed_by_display_name
             .as_deref()
             .or(item.reviewed_by_client_id.as_deref())
         {
-            ui.label(
-                RichText::new(format!("Marcada por {reviewed_by}"))
-                    .color(secondary_text_color)
-                    .size(13.0),
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("Marcada por {reviewed_by}"))
+                        .color(secondary_text_color)
+                        .size(10.0),
+                )
+                .truncate(),
             );
         }
 
@@ -774,6 +784,33 @@ fn render_card(ui: &mut egui::Ui, item: &MonitorItem, card_width: f32, reviewing
     mark_reviewed_clicked
 }
 
+fn render_metric_full(ui: &mut egui::Ui, label: &str, value: &str, reviewed: bool) {
+    let label_color = if reviewed {
+        Color32::from_gray(140)
+    } else {
+        Color32::GRAY
+    };
+    let value_color = if reviewed {
+        Color32::from_gray(110)
+    } else {
+        ui.visuals().text_color()
+    };
+
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
+        ui.label(RichText::new(label).size(10.0).color(label_color).strong());
+        ui.add(
+            egui::Label::new(
+                RichText::new(value)
+                    .color(value_color)
+                    .size(13.0)
+                    .strong(),
+            )
+            .truncate(),
+        );
+    });
+}
+
 fn render_metric(ui: &mut egui::Ui, label: &str, value: &str, value_size: f32, reviewed: bool) {
     let label_color = if reviewed {
         Color32::from_gray(140)
@@ -785,11 +822,17 @@ fn render_metric(ui: &mut egui::Ui, label: &str, value: &str, value_size: f32, r
     } else {
         ui.visuals().text_color()
     };
-    ui.label(RichText::new(label).size(13.0).color(label_color).strong());
-    ui.label(
-        RichText::new(value)
-            .color(value_color)
-            .size(value_size)
-            .strong(),
-    );
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        ui.label(RichText::new(label).size(9.0).color(label_color).strong());
+        ui.add(
+            egui::Label::new(
+                RichText::new(value)
+                    .color(value_color)
+                    .size(value_size)
+                    .strong(),
+            )
+            .truncate(),
+        );
+    });
 }
